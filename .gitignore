@@ -1,5 +1,6 @@
 # Local brainstorming / visual mockup sessions
 .superpowers/
+.worktrees/
 
 # Qt Creator user-specific files
 *.pro.user
