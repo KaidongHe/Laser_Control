@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>激光器控制系统 — 安全/联锁加固 TODO</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 32px 40px;
+    background: #1a1a1a;
+    color: #E0E0E0;
+    font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  h1 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    color: #FFFFFF;
+    border-left: 4px solid #00C8FF;
+    padding-left: 12px;
+  }
+  .subtitle {
+    color: #888;
+    margin-bottom: 24px;
+    font-size: 13px;
+  }
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 20px;
+    padding: 10px 14px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+  .red    { background: #FF4040; }
+  .yellow { background: #FFC840; }
+  .gray   { background: #888888; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #202020;
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  th, td {
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+    border-bottom: 1px solid #2c2c2c;
+  }
+  th {
+    background: #2a2a2a;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 13px;
+    border-bottom: 2px solid #444;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #262626; }
+  td.idx { text-align: center; color: #888; width: 36px; font-family: Consolas, monospace; }
+  td.loc { font-family: Consolas, "Courier New", monospace; font-size: 12px; color: #00C8FF; white-space: nowrap; }
+  td.now { color: #DDD; }
+  td.risk { color: #FF9090; }
+  td.tag { width: 80px; text-align: center; }
+  .tag-cell {
+    display: inline-block;
+    min-width: 56px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    background: #333;
+    color: #aaa;
+    border: 1px solid #444;
+  }
+
+  .summary {
+    margin-top: 28px;
+    padding: 14px 18px;
+    background: #1f2530;
+    border-left: 4px solid #FFA040;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #DDD;
+  }
+  .summary code {
+    background: #111;
+    padding: 1px 6px;
+    border-radius: 3px;
+    color: #FFC840;
+    font-family: Consolas, monospace;
+  }
+
+  footer {
+    margin-top: 24px;
+    color: #666;
+    font-size: 12px;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+
+<h1>激光器控制系统 · 安全 / 联锁加固 · TODO</h1>
+<div class="subtitle">来源：<code>serialhelper-1.2</code> 代码审阅 · 待用户逐条标注优先级</div>
+
+<div class="legend">
+  <span><span class="dot red"></span>🔴 必须修</span>
+  <span><span class="dot yellow"></span>🟡 想修</span>
+  <span><span class="dot gray"></span>⚪ 可忽略</span>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th class="idx">#</th>
+      <th>位置</th>
+      <th>现状</th>
+      <th>风险</th>
+      <th class="tag">优先级</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="idx">1</td>
+      <td class="loc">stm32/main.c:81</td>
+      <td class="now"><code>temp_status_prev3 = 1</code> 硬编码，PB15 温度检测被注释</td>
+      <td class="risk">L3 永远"温度就绪"，温控失效时上位机/下位机都不知道</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">2</td>
+      <td class="loc">widget.cpp:226 canControlLaser</td>
+      <td class="now">用 <code>currentLaser1mA</code>（setpoint）判 90 mA，不用 <code>measuredLaser1mA</code></td>
+      <td class="risk">设定值 ≠ 实际输出，硬件没跟上时也会放行 L2</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">3</td>
+      <td class="loc">STM32 协议</td>
+      <td class="now">单字符无校验、无 ACK</td>
+      <td class="risk">噪声造成误增减电流，永远不会被察觉</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">4</td>
+      <td class="loc">STM32 主循环</td>
+      <td class="now">没有上位机看门狗</td>
+      <td class="risk">上位机崩溃 / 串口断开，STM32 仍保持当前 DAC 不变（不会自动归零）</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">5</td>
+      <td class="loc">widget.cpp:691 spinbox 直输</td>
+      <td class="now">几秒内连发几百条指令，无急停</td>
+      <td class="risk">误输一个大数（比如把 0 改成 800）会一路冲到顶</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">6</td>
+      <td class="loc">widget.cpp:206 updateLaserStatusFromSend</td>
+      <td class="now">只要"发送成功"就把对应通道置 ready</td>
+      <td class="risk">假就绪：实际 STM32 可能根本没生效，但 UI 显示已就绪</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+    <tr>
+      <td class="idx">7</td>
+      <td class="loc">TRY 扫描</td>
+      <td class="now">不监控实测电流偏离 setpoint 多少</td>
+      <td class="risk">驱动饱和 / 失控时仍按时间表往上爬</td>
+      <td class="tag"><span class="tag-cell">—</span></td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="summary">
+  <strong>下一步：</strong>请按格式回复，例如 <code>1🔴 2🔴 3🟡 4🔴 5🟡 6🔴 7🟡</code>，
+  或者 "全部🔴" / "只关心 1、4、6"。如有我没列到的安全顾虑，请补一条。
+</div>
+
+<footer>generated for serialhelper-1.2 · 安全加固 brainstorming</footer>
+
+</body>
+</html>
