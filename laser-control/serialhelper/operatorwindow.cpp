@@ -207,6 +207,7 @@ void OperatorWindow::openDeveloperWindow()
 
     developerWindow = new Widget();
     developerWindow->setAttribute(Qt::WA_DeleteOnClose);
+    developerWindow->setAttribute(Qt::WA_QuitOnClose, false);
     connect(developerWindow, &QObject::destroyed, this, &OperatorWindow::handleDeveloperWindowClosed);
     hide();
     developerWindow->show();
