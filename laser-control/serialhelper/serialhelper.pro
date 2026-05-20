@@ -40,11 +40,13 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
         main.cpp \
         widget.cpp \
-        laserchart.cpp
+        laserchart.cpp \
+        operatorwindow.cpp
 
 HEADERS += \
         widget.h \
-        laserchart.h
+        laserchart.h \
+        operatorwindow.h
 
 FORMS += \
         widget.ui
