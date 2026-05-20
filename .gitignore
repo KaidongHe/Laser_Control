@@ -16,6 +16,7 @@ Release/
 .qmake.stash
 Makefile
 Makefile.*
+laser-control/serialhelper/serial_resource.rc
 *.o
 *.obj
 *.moc
