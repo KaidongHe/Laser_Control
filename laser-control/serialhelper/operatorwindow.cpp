@@ -35,7 +35,7 @@ void OperatorWindow::setupUi()
 {
     setWindowTitle(QStringLiteral("激光控制"));
     resize(760, 620);
-    setMinimumSize(640, 520);
+    setMinimumSize(640, 580);
 
     setStyleSheet(
         "OperatorWindow { background: #eef2f7; }"
