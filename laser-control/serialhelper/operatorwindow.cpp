@@ -7,6 +7,7 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSpinBox>
@@ -179,10 +180,44 @@ void OperatorWindow::togglePreRelease()
 
 void OperatorWindow::openDeveloperWindow()
 {
+    if (developerWindow) {
+        hide();
+        developerWindow->show();
+        developerWindow->raise();
+        developerWindow->activateWindow();
+        return;
+    }
+
+    bool ok = false;
+    const QString password = QInputDialog::getText(
+        this,
+        QStringLiteral("开发者验证"),
+        QStringLiteral("请输入开发者密码："),
+        QLineEdit::Password,
+        QString(),
+        &ok);
+    if (!ok) {
+        return;
+    }
+
+    if (password != QString::fromLatin1(DEVELOPER_PASSWORD)) {
+        QMessageBox::warning(this, QStringLiteral("密码错误"), QStringLiteral("开发者密码不正确。"));
+        return;
+    }
+
+    developerWindow = new Widget();
+    developerWindow->setAttribute(Qt::WA_DeleteOnClose);
+    connect(developerWindow, &QObject::destroyed, this, &OperatorWindow::handleDeveloperWindowClosed);
+    hide();
+    developerWindow->show();
 }
 
 void OperatorWindow::handleDeveloperWindowClosed()
 {
+    developerWindow = nullptr;
+    show();
+    raise();
+    activateWindow();
 }
 
 void OperatorWindow::updateToggleButton(QPushButton *button, bool enabled, const QString &label)
