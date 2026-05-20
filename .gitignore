@@ -17,6 +17,7 @@ Release/
 Makefile
 Makefile.*
 laser-control/serialhelper/serial_resource.rc
+serialhelper-1.2/serial_resource.rc
 *.o
 *.obj
 *.moc

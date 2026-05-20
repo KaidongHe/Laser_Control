@@ -52,6 +52,13 @@ FORMS += \
         widget.ui
 
 RC_ICONS=serialhelp.ico
-QMAKE_CXXFLAGS += /utf-8
+
+# Source files are UTF-8. Use the compiler-specific flag so Chinese UI text
+# stays correct on both MSVC and MinGW/GCC builds.
+msvc {
+    QMAKE_CXXFLAGS += /utf-8
+} else {
+    QMAKE_CXXFLAGS += -finput-charset=UTF-8 -fexec-charset=UTF-8
+}
 
 
