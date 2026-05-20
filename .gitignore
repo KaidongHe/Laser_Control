@@ -12,14 +12,15 @@ debug/
 release/
 Debug/
 Release/
+.qmake.stash
+Makefile
+Makefile.*
 *.o
 *.obj
 *.moc
 moc_*.cpp
 qrc_*.cpp
 ui_*.h
-Makefile
-*.Makefile
 *.exe
 *.dll
 *.lib
@@ -48,8 +49,10 @@ Makefile
 *.bak
 *.swp
 *~
+~$*
 
 # OS metadata
 Thumbs.db
 Desktop.ini
 .DS_Store
+laser-control-legacy/
