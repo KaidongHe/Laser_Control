@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>555</width>
-    <height>635</height>
+    <height>667</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -107,6 +107,16 @@ QLabel#serialStatusLabel {
   font-family: 'Microsoft YaHei';
   font-size: 12px;
   font-weight: 600;
+}
+QLabel#temperatureBypassWarningLabel {
+  color: #B7791F;
+  background: #FFF7DB;
+  border: 1px solid #F0C36A;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-family: 'Microsoft YaHei';
+  font-size: 12px;
+  font-weight: 600;
 }</string>
   </property>
   <widget class="QFrame" name="panel">
@@ -146,6 +156,19 @@ QLabel#serialStatusLabel {
     <property name="spacing">
      <number>18</number>
     </property>
+    <item row="0" column="0">
+     <widget class="QLabel" name="titleLabel">
+      <property name="text">
+       <string>&lt;div align=&quot;center&quot;&gt;&lt;span style=&quot;color:#197A50; font-size:18px;&quot;&gt;●&lt;/span&gt; &lt;span style=&quot;color:#7E8794; font-size:12px; font-weight:600;&quot;&gt;LASER CONTROL&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot;color:#22304F; font-size:24px; font-weight:600;&quot;&gt;激光控制&lt;/span&gt;&lt;/div&gt;</string>
+      </property>
+      <property name="textFormat">
+       <enum>Qt::RichText</enum>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
     <item row="1" column="0">
      <widget class="QPushButton" name="seedButton">
       <property name="cursor">
@@ -157,29 +180,7 @@ QLabel#serialStatusLabel {
       </property>
      </widget>
     </item>
-    <item row="4" column="0">
-     <widget class="PillSpinBox" name="powerSpinBox">
-      <property name="alignment">
-       <set>Qt::AlignCenter</set>
-      </property>
-      <property name="buttonSymbols">
-       <enum>QAbstractSpinBox::PlusMinus</enum>
-      </property>
-      <property name="suffix">
-       <string/>
-      </property>
-      <property name="minimum">
-       <number>2</number>
-      </property>
-      <property name="maximum">
-       <number>100</number>
-      </property>
-      <property name="value">
-       <number>2</number>
-      </property>
-     </widget>
-    </item>
-    <item row="6" column="0">
+    <item row="5" column="0">
      <layout class="QHBoxLayout" name="developerRow">
       <item>
        <spacer name="developerSpacer">
@@ -252,23 +253,32 @@ QLabel#serialStatusLabel {
       </property>
      </widget>
     </item>
+    <item row="4" column="0">
+     <widget class="PillSpinBox" name="powerSpinBox">
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+      <property name="buttonSymbols">
+       <enum>QAbstractSpinBox::PlusMinus</enum>
+      </property>
+      <property name="suffix">
+       <string/>
+      </property>
+      <property name="minimum">
+       <number>2</number>
+      </property>
+      <property name="maximum">
+       <number>100</number>
+      </property>
+      <property name="value">
+       <number>2</number>
+      </property>
+     </widget>
+    </item>
     <item row="3" column="0">
      <widget class="QLabel" name="powerLabel">
       <property name="text">
        <string>&lt;div align=&quot;center&quot;&gt;&lt;span style=&quot;color:#9AA4B2; font-size:11px; font-weight:600;&quot;&gt;OUTPUT POWER&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot;color:#7E8794; font-size:15px; font-weight:500;&quot;&gt;功率调节&lt;/span&gt;&lt;/div&gt;</string>
-      </property>
-      <property name="textFormat">
-       <enum>Qt::RichText</enum>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignCenter</set>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="0">
-     <widget class="QLabel" name="titleLabel">
-      <property name="text">
-       <string>&lt;div align=&quot;center&quot;&gt;&lt;span style=&quot;color:#197A50; font-size:18px;&quot;&gt;●&lt;/span&gt; &lt;span style=&quot;color:#7E8794; font-size:12px; font-weight:600;&quot;&gt;LASER CONTROL&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot;color:#22304F; font-size:24px; font-weight:600;&quot;&gt;激光控制&lt;/span&gt;&lt;/div&gt;</string>
       </property>
       <property name="textFormat">
        <enum>Qt::RichText</enum>
@@ -283,8 +293,8 @@ QLabel#serialStatusLabel {
   <widget class="QPushButton" name="developerButton">
    <property name="geometry">
     <rect>
-     <x>440</x>
-     <y>580</y>
+     <x>450</x>
+     <y>630</y>
      <width>91</width>
      <height>28</height>
     </rect>
@@ -294,6 +304,28 @@ QLabel#serialStatusLabel {
    </property>
    <property name="text">
     <string>开发者</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="temperatureBypassWarningLabel">
+   <property name="geometry">
+    <rect>
+     <x>60</x>
+     <y>570</y>
+     <width>431</width>
+     <height>51</height>
+    </rect>
+   </property>
+   <property name="visible">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string/>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignCenter</set>
+   </property>
+   <property name="wordWrap">
+    <bool>true</bool>
    </property>
   </widget>
  </widget>

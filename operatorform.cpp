@@ -173,6 +173,7 @@ void operatorForm::setupSerialControls()
     ui->serialComboBox->setToolTip(QString::fromUtf8(u8"选择普通模式要连接的串口"));
     ui->serialConnectButton->setCursor(Qt::PointingHandCursor);
     ui->serialStatusLabel->setAlignment(Qt::AlignCenter);
+    updateTemperatureBypassWarning();
 }
 
 void operatorForm::refreshOperatorSerialPorts()
@@ -404,6 +405,7 @@ void operatorForm::updateOperatorLockState()
 
     const bool hasTransport = controller->hasLaserTransport();
     const bool anyBusy = controller->isAnyLaserBusy() || l1Busy || l2Busy || l3Busy;
+    updateTemperatureBypassWarning();
 
     // L1 也必须跟随关机顺序联锁：如果 L2/L3 还没有回到安全态，普通页面不能先关闭 L1。
     const bool canRequestL1On = !seedEnabled && controller->canAdjustLaser(1, +1);
@@ -461,6 +463,19 @@ void operatorForm::updateOperatorLockState()
                                        ? QString::fromUtf8(u8"当前有激光器正在缓升/缓降，请等待完成")
                                        : controller->adjustBlockReason(3, +1))
                                     : QString::fromUtf8(u8"请先连接串口")));
+}
+
+void operatorForm::updateTemperatureBypassWarning()
+{
+    if (!ui->temperatureBypassWarningLabel) return;
+
+    const bool bypass = controller && controller->temperatureReadyBypassEnabled();
+    // 旁路提示必须持续显示在普通页面，避免操作员误以为上位机已经验证了温度 ready。
+    const QString warningText = QString::fromUtf8(
+        u8"警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。");
+    ui->temperatureBypassWarningLabel->setText(bypass ? warningText : QString());
+    ui->temperatureBypassWarningLabel->setToolTip(bypass ? warningText : QString());
+    ui->temperatureBypassWarningLabel->setVisible(bypass);
 }
 
 void operatorForm::syncPowerSpinBoxFromLaser3()

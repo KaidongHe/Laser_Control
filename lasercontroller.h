@@ -89,12 +89,14 @@ public:
     int operatorPowerMaxPercent() const;
     int operatorPowerPercentToMa(int percent) const;
     int operatorPowerMaToPercent(int currentMa) const;
+    bool temperatureReadyBypassEnabled() const;
     DeveloperRuntimeParams developerRuntimeParams() const;
 
     bool adjustLaser(int laserIndex, int direction, bool coarseMode);
     bool setLaserTarget(int laserIndex, int target, bool coarseMode, int durationMs = -1);
     bool requestOperatorSwitch(int laserIndex, bool on, QString *reason = nullptr);
     bool requestOperatorPowerPercent(int percent, QString *reason = nullptr);
+    bool setTemperatureReadyBypassEnabled(bool enabled, QString *error = nullptr);
     bool saveDeveloperLaserParameters(int laserIndex, const DeveloperRuntimeParams &params, QString *error = nullptr);
 
 signals:
@@ -196,6 +198,7 @@ private:
         int defaultRampIntervalMs = 150;
         int minRampIntervalMs = 1;
         int minManualSendIntervalMs = 120;
+        bool temperatureReadyBypass = false;
 
         int tryL1Phase1TimeSec = 90;
         int tryL1Phase2TimeSec = 90;

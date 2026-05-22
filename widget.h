@@ -53,6 +53,7 @@ private slots:
     void on_laser1ParamsButton_clicked();
     void on_laser2ParamsButton_clicked();
     void on_laser3ParamsButton_clicked();
+    void on_temperatureBypassButton_clicked();
     void on_tryButton_clicked();
     void tryStep();
 
@@ -84,6 +85,7 @@ private:
 
     // TRY扫描
     QTimer *tryTimer;
+    QTimer *visualRefreshTimer = nullptr; // 合并同一轮事件循环内的多次界面刷新，减少扫描时按钮重绘闪烁
     enum TryState {
         TryIdle,
         TryPhase1,
@@ -136,10 +138,12 @@ private:
     void updateLaserVisual(int laserIndex);            // 刷新读数、按钮可用、提示
     void updateAllLaserVisuals();                      // 三路联锁互相影响，电流变化后统一刷新全部按钮和提示
     void setLaser1Mode(bool coarse);
+    void doUpdateAllLaserVisuals();                    // 定时器真正执行的刷新入口，避免一次串口/ramp 信号触发多次重绘
     void setLaser2Mode(bool coarse);
     void applyDeveloperRuntimeParams(const LaserController::DeveloperRuntimeParams &params);
     bool canEditDeveloperParams() const;
     bool saveLaserParamsFromDialog(int laserIndex, const LaserController::DeveloperRuntimeParams &params);
+    void updateTemperatureBypassUi();
     QString blockReason(int laserIndex) const;
     QString adjustBlockReason(int laserIndex, int direction) const; // 返回更具体的顺序联锁阻塞原因
     bool hasLaserTransport() const;                                 // Debug 模式下模拟串口可用，真实模式下检查串口

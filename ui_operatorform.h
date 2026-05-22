@@ -28,23 +28,24 @@ class Ui_operatorForm
 public:
     QFrame *panel;
     QGridLayout *gridLayout;
+    QLabel *titleLabel;
     QPushButton *seedButton;
-    PillSpinBox *powerSpinBox;
     QHBoxLayout *developerRow;
     QSpacerItem *developerSpacer;
     QLabel *serialStatusLabel;
     QComboBox *serialComboBox;
     QPushButton *serialConnectButton;
     QPushButton *preReleaseButton;
+    PillSpinBox *powerSpinBox;
     QLabel *powerLabel;
-    QLabel *titleLabel;
     QPushButton *developerButton;
+    QLabel *temperatureBypassWarningLabel;
 
     void setupUi(QWidget *operatorForm)
     {
         if (operatorForm->objectName().isEmpty())
             operatorForm->setObjectName(QString::fromUtf8("operatorForm"));
-        operatorForm->resize(555, 635);
+        operatorForm->resize(555, 667);
         operatorForm->setMinimumSize(QSize(400, 580));
         operatorForm->setStyleSheet(QString::fromUtf8("QWidget#operatorForm { background: #EEF2F7; }\n"
 "QFrame#panel {\n"
@@ -138,6 +139,16 @@ public:
 "  font-family: 'Microsoft YaHei';\n"
 "  font-size: 12px;\n"
 "  font-weight: 600;\n"
+"}\n"
+"QLabel#temperatureBypassWarningLabel {\n"
+"  color: #B7791F;\n"
+"  background: #FFF7DB;\n"
+"  border: 1px solid #F0C36A;\n"
+"  border-radius: 6px;\n"
+"  padding: 5px 8px;\n"
+"  font-family: 'Microsoft YaHei';\n"
+"  font-size: 12px;\n"
+"  font-weight: 600;\n"
 "}"));
         panel = new QFrame(operatorForm);
         panel->setObjectName(QString::fromUtf8("panel"));
@@ -148,21 +159,18 @@ public:
         gridLayout->setSpacing(18);
         gridLayout->setObjectName(QString::fromUtf8("gridLayout"));
         gridLayout->setContentsMargins(42, 26, 42, 18);
+        titleLabel = new QLabel(panel);
+        titleLabel->setObjectName(QString::fromUtf8("titleLabel"));
+        titleLabel->setTextFormat(Qt::RichText);
+        titleLabel->setAlignment(Qt::AlignCenter);
+
+        gridLayout->addWidget(titleLabel, 0, 0, 1, 1);
+
         seedButton = new QPushButton(panel);
         seedButton->setObjectName(QString::fromUtf8("seedButton"));
         seedButton->setCursor(QCursor(Qt::PointingHandCursor));
 
         gridLayout->addWidget(seedButton, 1, 0, 1, 1);
-
-        powerSpinBox = new PillSpinBox(panel);
-        powerSpinBox->setObjectName(QString::fromUtf8("powerSpinBox"));
-        powerSpinBox->setAlignment(Qt::AlignCenter);
-        powerSpinBox->setButtonSymbols(QAbstractSpinBox::PlusMinus);
-        powerSpinBox->setMinimum(2);
-        powerSpinBox->setMaximum(100);
-        powerSpinBox->setValue(2);
-
-        gridLayout->addWidget(powerSpinBox, 4, 0, 1, 1);
 
         developerRow = new QHBoxLayout();
         developerRow->setObjectName(QString::fromUtf8("developerRow"));
@@ -191,13 +199,23 @@ public:
         developerRow->addWidget(serialConnectButton);
 
 
-        gridLayout->addLayout(developerRow, 6, 0, 1, 1);
+        gridLayout->addLayout(developerRow, 5, 0, 1, 1);
 
         preReleaseButton = new QPushButton(panel);
         preReleaseButton->setObjectName(QString::fromUtf8("preReleaseButton"));
         preReleaseButton->setCursor(QCursor(Qt::PointingHandCursor));
 
         gridLayout->addWidget(preReleaseButton, 2, 0, 1, 1);
+
+        powerSpinBox = new PillSpinBox(panel);
+        powerSpinBox->setObjectName(QString::fromUtf8("powerSpinBox"));
+        powerSpinBox->setAlignment(Qt::AlignCenter);
+        powerSpinBox->setButtonSymbols(QAbstractSpinBox::PlusMinus);
+        powerSpinBox->setMinimum(2);
+        powerSpinBox->setMaximum(100);
+        powerSpinBox->setValue(2);
+
+        gridLayout->addWidget(powerSpinBox, 4, 0, 1, 1);
 
         powerLabel = new QLabel(panel);
         powerLabel->setObjectName(QString::fromUtf8("powerLabel"));
@@ -206,17 +224,16 @@ public:
 
         gridLayout->addWidget(powerLabel, 3, 0, 1, 1);
 
-        titleLabel = new QLabel(panel);
-        titleLabel->setObjectName(QString::fromUtf8("titleLabel"));
-        titleLabel->setTextFormat(Qt::RichText);
-        titleLabel->setAlignment(Qt::AlignCenter);
-
-        gridLayout->addWidget(titleLabel, 0, 0, 1, 1);
-
         developerButton = new QPushButton(operatorForm);
         developerButton->setObjectName(QString::fromUtf8("developerButton"));
-        developerButton->setGeometry(QRect(440, 580, 91, 28));
+        developerButton->setGeometry(QRect(450, 630, 91, 28));
         developerButton->setCursor(QCursor(Qt::PointingHandCursor));
+        temperatureBypassWarningLabel = new QLabel(operatorForm);
+        temperatureBypassWarningLabel->setObjectName(QString::fromUtf8("temperatureBypassWarningLabel"));
+        temperatureBypassWarningLabel->setGeometry(QRect(60, 570, 431, 51));
+        temperatureBypassWarningLabel->setVisible(true);
+        temperatureBypassWarningLabel->setAlignment(Qt::AlignCenter);
+        temperatureBypassWarningLabel->setWordWrap(true);
 
         retranslateUi(operatorForm);
 
@@ -225,9 +242,9 @@ public:
 
     void retranslateUi(QWidget *operatorForm)
     {
+        titleLabel->setText(QCoreApplication::translate("operatorForm", "<div align=\"center\"><span style=\"color:#197A50; font-size:18px;\">\342\227\217</span> <span style=\"color:#7E8794; font-size:12px; font-weight:600;\">LASER CONTROL</span><br/><span style=\"color:#22304F; font-size:24px; font-weight:600;\">\346\277\200\345\205\211\346\216\247\345\210\266</span></div>", nullptr));
         seedButton->setText(QCoreApplication::translate("operatorForm", "L1 \345\274\200/\345\205\263\357\274\210\347\247\215\345\255\220\357\274\211\n"
 "\345\267\262\345\205\263\351\227\255", nullptr));
-        powerSpinBox->setSuffix(QString());
         serialStatusLabel->setText(QCoreApplication::translate("operatorForm", "\342\227\217 \346\234\252\350\277\236\346\216\245", nullptr));
 #if QT_CONFIG(tooltip)
         serialComboBox->setToolTip(QCoreApplication::translate("operatorForm", "\351\200\211\346\213\251\346\231\256\351\200\232\346\250\241\345\274\217\350\246\201\350\277\236\346\216\245\347\232\204\344\270\262\345\217\243", nullptr));
@@ -235,9 +252,10 @@ public:
         serialConnectButton->setText(QCoreApplication::translate("operatorForm", "\350\277\236\346\216\245", nullptr));
         preReleaseButton->setText(QCoreApplication::translate("operatorForm", "\351\242\204\346\224\276\345\274\200/\345\205\263\n"
 "\345\267\262\345\205\263\351\227\255", nullptr));
+        powerSpinBox->setSuffix(QString());
         powerLabel->setText(QCoreApplication::translate("operatorForm", "<div align=\"center\"><span style=\"color:#9AA4B2; font-size:11px; font-weight:600;\">OUTPUT POWER</span><br/><span style=\"color:#7E8794; font-size:15px; font-weight:500;\">\345\212\237\347\216\207\350\260\203\350\212\202</span></div>", nullptr));
-        titleLabel->setText(QCoreApplication::translate("operatorForm", "<div align=\"center\"><span style=\"color:#197A50; font-size:18px;\">\342\227\217</span> <span style=\"color:#7E8794; font-size:12px; font-weight:600;\">LASER CONTROL</span><br/><span style=\"color:#22304F; font-size:24px; font-weight:600;\">\346\277\200\345\205\211\346\216\247\345\210\266</span></div>", nullptr));
         developerButton->setText(QCoreApplication::translate("operatorForm", "\345\274\200\345\217\221\350\200\205", nullptr));
+        temperatureBypassWarningLabel->setText(QString());
         (void)operatorForm;
     } // retranslateUi
 

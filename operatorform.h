@@ -34,6 +34,7 @@ private:
     void updateOperatorSerialUi(bool opened, const QString &portName);
     void updateToggleButton(QPushButton *button, bool enabled, const QString &label, bool busy = false);
     void updateOperatorLockState();
+    void updateTemperatureBypassWarning();
     void syncPowerSpinBoxFromLaser3();
 
     Ui::operatorForm *ui;

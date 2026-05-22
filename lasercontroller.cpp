@@ -117,6 +117,9 @@ void LaserController::saveDefaultConfigIfMissing() const
     s.setValue(QStringLiteral("Ramp/MinIntervalMs"), defaults.minRampIntervalMs);
     s.setValue(QStringLiteral("Ramp/MinManualSendIntervalMs"), defaults.minManualSendIntervalMs);
 
+    // 临时温度旁路默认关闭；只有开发者确认后才允许忽略上位机 rawReady。
+    s.setValue(QStringLiteral("Temperature/BypassReadyCheck"), defaults.temperatureReadyBypass);
+
     // 兼容旧版本 TRY 的 L1 字段；真实运行时以 StartupL1 为准。
     s.setValue(QStringLiteral("DeveloperTry/L1Phase1TimeSec"), defaults.startupL1RiseDurationMs / 1000);
     s.setValue(QStringLiteral("DeveloperTry/L1Phase2TimeSec"), defaults.startupL1FallMiddleDurationMs / 1000);
@@ -200,6 +203,7 @@ void LaserController::loadConfig()
     cfg.defaultRampIntervalMs = s.value(QStringLiteral("Ramp/DefaultIntervalMs"), defaults.defaultRampIntervalMs).toInt();
     cfg.minRampIntervalMs = s.value(QStringLiteral("Ramp/MinIntervalMs"), defaults.minRampIntervalMs).toInt();
     cfg.minManualSendIntervalMs = s.value(QStringLiteral("Ramp/MinManualSendIntervalMs"), defaults.minManualSendIntervalMs).toInt();
+    cfg.temperatureReadyBypass = s.value(QStringLiteral("Temperature/BypassReadyCheck"), defaults.temperatureReadyBypass).toBool();
 
     cfg.tryL1Phase1TimeSec = s.value(QStringLiteral("DeveloperTry/L1Phase1TimeSec"), defaults.tryL1Phase1TimeSec).toInt();
     cfg.tryL1Phase2TimeSec = s.value(QStringLiteral("DeveloperTry/L1Phase2TimeSec"), defaults.tryL1Phase2TimeSec).toInt();
@@ -497,6 +501,11 @@ bool LaserController::laserReadyForStartup(int laserIndex) const
     // Debug 模式没有真实温度回报，只跳过 ready 信号，不跳过电流顺序。
     return true;
 #else
+    if (cfg.temperatureReadyBypass) {
+        Q_UNUSED(laserIndex);
+        // 临时旁路只跳过上位机 rawReady 判断；canAdjustLaser() 中的电流顺序和关机顺序仍然继续执行。
+        return true;
+    }
     return laserRawReady(laserIndex);
 #endif
 }
@@ -1006,6 +1015,11 @@ int LaserController::operatorPowerMaToPercent(int currentMa) const
     return qBound(minPercent, minPercent + qRound(ratio * double(maxPercent - minPercent)), maxPercent);
 }
 
+bool LaserController::temperatureReadyBypassEnabled() const
+{
+    return cfg.temperatureReadyBypass;
+}
+
 LaserController::DeveloperRuntimeParams LaserController::developerRuntimeParams() const
 {
     DeveloperRuntimeParams params;
@@ -1037,6 +1051,47 @@ LaserController::DeveloperRuntimeParams LaserController::developerRuntimeParams(
     params.tryL3StepMa = cfg.tryL3StepMa;
     params.tryL3TimeSec = cfg.tryL3TimeSec;
     return params;
+}
+
+bool LaserController::setTemperatureReadyBypassEnabled(bool enabled, QString *error)
+{
+    if (isAnyLaserBusy()) {
+        if (error) *error = QString::fromUtf8(u8"当前仍在缓升/缓降，不能切换温度旁路状态。");
+        return false;
+    }
+
+    if (cfg.temperatureReadyBypass == enabled) {
+        return true;
+    }
+
+    saveDefaultConfigIfMissing();
+    const QString path = configFilePath();
+    const QString backupPath = path + QStringLiteral(".bak");
+    if (QFile::exists(path)) {
+        QFile::remove(backupPath);
+        if (!QFile::copy(path, backupPath)) {
+            if (error) *error = QString::fromUtf8(u8"写入前备份配置文件失败，请检查目录权限。");
+            return false;
+        }
+    }
+
+    QSettings s(path, QSettings::IniFormat);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    s.setIniCodec("UTF-8");
+#endif
+    s.setValue(QStringLiteral("Temperature/BypassReadyCheck"), enabled);
+    s.sync();
+    if (s.status() != QSettings::NoError) {
+        if (error) *error = QString::fromUtf8(u8"温度旁路配置写入失败，请检查文件是否只读或被占用。");
+        return false;
+    }
+
+    cfg.temperatureReadyBypass = enabled;
+    emit logMessage(enabled
+                    ? QString::fromUtf8(u8"[WARN] 温度就绪旁路已开启：上位机忽略 rawReady，仅保留顺序联锁，最终温度保护依赖下位机")
+                    : QString::fromUtf8(u8"[INFO] 温度就绪旁路已关闭：上位机重新要求 STM32 温度 ready"));
+    emit stateChanged();
+    return true;
 }
 
 bool LaserController::saveDeveloperLaserParameters(int laserIndex, const DeveloperRuntimeParams &params, QString *error)

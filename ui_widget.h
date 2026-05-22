@@ -105,21 +105,23 @@ public:
     QLabel *reasonLabel3;
     QSpacerItem *vs3;
     QPlainTextEdit *receiveEdit;
+    QLabel *developerTemperatureBypassWarningLabel;
     QHBoxLayout *serialRow;
     QSpacerItem *sp1;
     QLabel *label;
     QComboBox *serialCb;
     QPushButton *openBt;
     QPushButton *closeBt;
-    QPushButton *sendBt;
     QPushButton *clearBt;
+    QPushButton *temperatureBypassButton;
+    QPushButton *sendBt;
     QPushButton *tryButton;
 
     void setupUi(QWidget *Widget)
     {
         if (Widget->objectName().isEmpty())
             Widget->setObjectName(QString::fromUtf8("Widget"));
-        Widget->resize(1180, 820);
+        Widget->resize(1180, 832);
         QFont font;
         font.setFamily(QString::fromUtf8("Arial"));
         Widget->setFont(font);
@@ -179,7 +181,7 @@ public:
         big1Row->setObjectName(QString::fromUtf8("big1Row"));
         bigCurrent1 = new QLabel(ctrl1Wrap);
         bigCurrent1->setObjectName(QString::fromUtf8("bigCurrent1"));
-        bigCurrent1->setAlignment(Qt::AlignRight|Qt::AlignVCenter);
+        bigCurrent1->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
 
         big1Row->addWidget(bigCurrent1);
 
@@ -315,7 +317,7 @@ public:
         big2Row->setObjectName(QString::fromUtf8("big2Row"));
         bigCurrent2 = new QLabel(ctrl2Wrap);
         bigCurrent2->setObjectName(QString::fromUtf8("bigCurrent2"));
-        bigCurrent2->setAlignment(Qt::AlignRight|Qt::AlignVCenter);
+        bigCurrent2->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
 
         big2Row->addWidget(bigCurrent2);
 
@@ -451,7 +453,7 @@ public:
         big3Row->setObjectName(QString::fromUtf8("big3Row"));
         bigCurrent3 = new QLabel(ctrl3Wrap);
         bigCurrent3->setObjectName(QString::fromUtf8("bigCurrent3"));
-        bigCurrent3->setAlignment(Qt::AlignRight|Qt::AlignVCenter);
+        bigCurrent3->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
 
         big3Row->addWidget(bigCurrent3);
 
@@ -542,6 +544,14 @@ public:
 
         rootLayout->addWidget(receiveEdit);
 
+        developerTemperatureBypassWarningLabel = new QLabel(Widget);
+        developerTemperatureBypassWarningLabel->setObjectName(QString::fromUtf8("developerTemperatureBypassWarningLabel"));
+        developerTemperatureBypassWarningLabel->setVisible(false);
+        developerTemperatureBypassWarningLabel->setAlignment(Qt::AlignCenter);
+        developerTemperatureBypassWarningLabel->setWordWrap(true);
+
+        rootLayout->addWidget(developerTemperatureBypassWarningLabel);
+
         serialRow = new QHBoxLayout();
         serialRow->setSpacing(6);
         serialRow->setObjectName(QString::fromUtf8("serialRow"));
@@ -569,16 +579,22 @@ public:
 
         serialRow->addWidget(closeBt);
 
+        clearBt = new QPushButton(Widget);
+        clearBt->setObjectName(QString::fromUtf8("clearBt"));
+
+        serialRow->addWidget(clearBt);
+
+        temperatureBypassButton = new QPushButton(Widget);
+        temperatureBypassButton->setObjectName(QString::fromUtf8("temperatureBypassButton"));
+        temperatureBypassButton->setMinimumSize(QSize(120, 32));
+
+        serialRow->addWidget(temperatureBypassButton);
+
         sendBt = new QPushButton(Widget);
         sendBt->setObjectName(QString::fromUtf8("sendBt"));
         sendBt->setVisible(false);
 
         serialRow->addWidget(sendBt);
-
-        clearBt = new QPushButton(Widget);
-        clearBt->setObjectName(QString::fromUtf8("clearBt"));
-
-        serialRow->addWidget(clearBt);
 
         tryButton = new QPushButton(Widget);
         tryButton->setObjectName(QString::fromUtf8("tryButton"));
@@ -621,15 +637,17 @@ public:
 "QLabel#measuredLabel1, QLabel#measuredLabel2, QLabel#measuredLabel3 { color: #FFC840; font-size: 11px; }\n"
 "QLabel#reasonLabel1, QLabel#reasonLabel2, QLabel#reasonLabel3 { color: #FF6060; font-size: 11px; font-style: italic; }\n"
 "QLabel#ledLabel1, QLabel#ledLabel2, QLabel#ledLabel3 { font-size: 18px; font-weight: bold; }\n"
+"QLabel#developerTemperatureBypassWarningLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }\n"
 "QPushButton#tryButton { background-color: #2196F3; }\n"
-"QPushButton#tryButton:hover { background-color: #CC5500; }", nullptr));
+"QPushButton#tryBu"
+                        "tton:hover { background-color: #CC5500; }", nullptr));
         card1->setTitle(QCoreApplication::translate("Widget", "\346\277\200\345\205\211\345\231\250 1", nullptr));
-        ledLabel1->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         ledLabel1->setStyleSheet(QCoreApplication::translate("Widget", "color: #FF4040;", nullptr));
+        ledLabel1->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         laser1StatusLabel->setText(QCoreApplication::translate("Widget", "\346\234\252\345\260\261\347\273\252", nullptr));
         bigCurrent1->setText(QCoreApplication::translate("Widget", "0", nullptr));
-        unit1->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         unit1->setStyleSheet(QCoreApplication::translate("Widget", "font-size:14px;", nullptr));
+        unit1->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         measuredLabel1->setText(QCoreApplication::translate("Widget", "\345\256\236\346\265\213: --", nullptr));
         laser1DownBtn->setText(QCoreApplication::translate("Widget", "\342\210\222", nullptr));
         laser1UpBtn->setText(QCoreApplication::translate("Widget", "\357\274\213", nullptr));
@@ -639,12 +657,12 @@ public:
         laser1ParamsButton->setText(QCoreApplication::translate("Widget", "\345\217\202\346\225\260", nullptr));
         reasonLabel1->setText(QString());
         card2->setTitle(QCoreApplication::translate("Widget", "\346\277\200\345\205\211\345\231\250 2", nullptr));
-        ledLabel2->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         ledLabel2->setStyleSheet(QCoreApplication::translate("Widget", "color: #FF4040;", nullptr));
+        ledLabel2->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         laser2StatusLabel->setText(QCoreApplication::translate("Widget", "\346\234\252\345\260\261\347\273\252", nullptr));
         bigCurrent2->setText(QCoreApplication::translate("Widget", "0", nullptr));
-        unit2->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         unit2->setStyleSheet(QCoreApplication::translate("Widget", "font-size:14px;", nullptr));
+        unit2->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         measuredLabel2->setText(QCoreApplication::translate("Widget", "\345\256\236\346\265\213: --", nullptr));
         laser2DownBtn->setText(QCoreApplication::translate("Widget", "\342\210\222", nullptr));
         laser2UpBtn->setText(QCoreApplication::translate("Widget", "\357\274\213", nullptr));
@@ -654,23 +672,25 @@ public:
         laser2ParamsButton->setText(QCoreApplication::translate("Widget", "\345\217\202\346\225\260", nullptr));
         reasonLabel2->setText(QString());
         card3->setTitle(QCoreApplication::translate("Widget", "\346\277\200\345\205\211\345\231\250 3", nullptr));
-        ledLabel3->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         ledLabel3->setStyleSheet(QCoreApplication::translate("Widget", "color: #FF4040;", nullptr));
+        ledLabel3->setText(QCoreApplication::translate("Widget", "\342\227\217", nullptr));
         laser3StatusLabel->setText(QCoreApplication::translate("Widget", "\346\234\252\345\260\261\347\273\252", nullptr));
         bigCurrent3->setText(QCoreApplication::translate("Widget", "800", nullptr));
-        unit3->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         unit3->setStyleSheet(QCoreApplication::translate("Widget", "font-size:14px;", nullptr));
+        unit3->setText(QCoreApplication::translate("Widget", "mA", nullptr));
         measuredLabel3->setText(QCoreApplication::translate("Widget", "\345\256\236\346\265\213: --", nullptr));
         laser3DownBtn->setText(QCoreApplication::translate("Widget", "\342\210\222", nullptr));
         laser3UpBtn->setText(QCoreApplication::translate("Widget", "\357\274\213", nullptr));
         mode3Title->setText(QCoreApplication::translate("Widget", "\346\255\245\351\225\277 100 mA", nullptr));
         laser3ParamsButton->setText(QCoreApplication::translate("Widget", "\345\217\202\346\225\260", nullptr));
         reasonLabel3->setText(QString());
+        developerTemperatureBypassWarningLabel->setText(QCoreApplication::translate("Widget", "\346\270\251\345\272\246\346\227\201\350\267\257\345\267\262\345\274\200\345\220\257\357\274\232\344\270\212\344\275\215\346\234\272\346\234\252\351\252\214\350\257\201\346\270\251\345\272\246\345\260\261\347\273\252\357\274\214\346\234\200\347\273\210\344\277\235\346\212\244\344\276\235\350\265\226\344\270\213\344\275\215\346\234\272", nullptr));
         label->setText(QCoreApplication::translate("Widget", "\344\270\262\345\217\243\345\217\267", nullptr));
         openBt->setText(QCoreApplication::translate("Widget", "\346\211\223\345\274\200\344\270\262\345\217\243", nullptr));
         closeBt->setText(QCoreApplication::translate("Widget", "\345\205\263\351\227\255\344\270\262\345\217\243", nullptr));
-        sendBt->setText(QCoreApplication::translate("Widget", "\345\217\221\351\200\201\346\225\260\346\215\256", nullptr));
         clearBt->setText(QCoreApplication::translate("Widget", "\346\270\205\347\251\272\346\226\207\346\234\254", nullptr));
+        temperatureBypassButton->setText(QCoreApplication::translate("Widget", "\346\270\251\345\272\246\346\227\201\350\267\257: \345\205\263\351\227\255", nullptr));
+        sendBt->setText(QCoreApplication::translate("Widget", "\345\217\221\351\200\201\346\225\260\346\215\256", nullptr));
         tryButton->setText(QCoreApplication::translate("Widget", "\345\205\250\346\256\265\346\211\253\346\217\217 (TRY)", nullptr));
     } // retranslateUi
 
