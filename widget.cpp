@@ -47,7 +47,6 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     ui(new Ui::Widget),
     controller(sharedController ? sharedController : new LaserController(this)),
     ownsController(sharedController == nullptr),
-    serialPort(nullptr),
     currentLaser1mA(0),
     currentLaser2mA(0),
     currentLaser3mA(LaserController::L3_SAFE_OFF_MA)
@@ -56,10 +55,6 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     setWindowTitle(QStringLiteral("Laser Control System"));
 
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-    serialCheckTimer = nullptr;
-    autoReconnectTimer = nullptr;
-    statusCheckTimer = nullptr;
 
     // 开发者窗口现在只作为视图，串口和安全联锁都由 LaserController 统一维护。
     connect(controller, &LaserController::logMessage, ui->receiveEdit, &QPlainTextEdit::appendPlainText);
@@ -176,7 +171,6 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     tryTimer->setSingleShot(false);
     connect(tryTimer, &QTimer::timeout, this, &Widget::tryStep);
 
-    updateAllLaserStates();
     ui->receiveEdit->appendPlainText(QString::fromUtf8(u8"[INFO] 开发者窗口已连接到共享控制核心"));
 }
 
@@ -250,58 +244,14 @@ void Widget::resetLaserStates()
     updateAllLaserVisuals();
 }
 
-void Widget::tryAutoActivateLasers()
-{
-    // 该逻辑已移动到 LaserController，保留空实现避免旧连接或自动槽误调用。
-    updateAllLaserStates();
-}
-
-void Widget::updateAllLaserStates()
-{
-    laser1Ready = controller->laserReady(1);
-    laser2Ready = controller->laserReady(2);
-    laser3Ready = controller->laserReady(3);
-    laser1RawReady = controller->laserRawReady(1);
-    laser2RawReady = controller->laserRawReady(2);
-    laser3RawReady = controller->laserRawReady(3);
-    setLaserReady(1, laser1Ready);
-    setLaserReady(2, laser2Ready);
-    setLaserReady(3, laser3Ready);
-    updateAllLaserVisuals();
-}
-
-void Widget::updateLaserDependencies()
-{
-    // 依赖计算已集中到控制核心，这里只同步显示。
-    updateAllLaserStates();
-}
-
-void Widget::updateLaserStatusFromSend(int laserIndex)
-{
-    Q_UNUSED(laserIndex);
-    // 发送后的就绪推导已由控制核心处理。
-    updateAllLaserStates();
-}
-
 bool Widget::hasLaserTransport() const
 {
     return controller->hasLaserTransport();
 }
 
-bool Widget::laserReadyForStartup(int laserIndex) const
-{
-    return controller->laserRawReady(laserIndex);
-}
-
 bool Widget::canAdjustLaser(int laserIndex, int direction) const
 {
     return controller->canAdjustLaser(laserIndex, direction);
-}
-
-bool Widget::canControlLaser(int laserIndex)
-{
-    // 兼容旧调用：只表示该通道当前至少有一个方向可操作，真正发送时仍按方向二次校验。
-    return canAdjustLaser(laserIndex, +1) || canAdjustLaser(laserIndex, -1);
 }
 
 QString Widget::adjustBlockReason(int laserIndex, int direction) const
@@ -314,28 +264,6 @@ QString Widget::blockReason(int laserIndex) const
     return adjustBlockReason(laserIndex, +1);
 }
 
-int Widget::commandDirectionForLaser(int laserIndex, char cmd) const
-{
-    // 仅保留给旧调试路径使用；正式联锁判断已移动到 LaserController。
-    switch (laserIndex) {
-    case 1:
-        if (cmd == '1' || cmd == '3') return +1;
-        if (cmd == '0' || cmd == '2') return -1;
-        break;
-    case 2:
-        if (cmd == '4' || cmd == '6') return +1;
-        if (cmd == '5' || cmd == '7') return -1;
-        break;
-    case 3:
-        if (cmd == '8') return +1;
-        if (cmd == '9') return -1;
-        break;
-    default:
-        break;
-    }
-    return 0;
-}
-
 // ===================== 串口管理 =====================
 void Widget::refreshSerialPortList()
 {
@@ -346,45 +274,6 @@ void Widget::refreshSerialPortList()
     }
     int index = ui->serialCb->findText(currentSelection);
     if (index != -1) ui->serialCb->setCurrentIndex(index);
-}
-
-bool Widget::isTargetPort(const QString &portName)
-{
-    foreach (const QSerialPortInfo &info, QSerialPortInfo::availablePorts()) {
-        if (info.portName() == portName) return true;
-    }
-    return false;
-}
-
-void Widget::handleSerialError(QSerialPort::SerialPortError error)
-{
-    Q_UNUSED(error);
-    // 串口错误处理已由 LaserController 统一负责，界面只接收日志和状态信号。
-}
-
-void Widget::checkSerialPorts()
-{
-    refreshSerialPortList();
-}
-
-void Widget::autoReconnectSerialPort()
-{
-    // 自动重连已移动到控制核心。
-}
-
-void Widget::checkLaserStatus()
-{
-    updateAllLaserStates();
-}
-
-QString Widget::decodeSerialData(const QByteArray &data)
-{
-    QString text = QString::fromUtf8(data);
-    if (text.contains(QChar(0xFFFD))) {
-        QTextCodec *gbk = QTextCodec::codecForName("GBK");
-        text = gbk ? gbk->toUnicode(data) : QString::fromLocal8Bit(data);
-    }
-    return text;
 }
 
 void Widget::on_openBt_clicked()
@@ -409,36 +298,7 @@ void Widget::on_closeBt_clicked()
     controller->closeSerial();
 }
 
-// ===================== 接收 =====================
-void Widget::serialPortReadyRead_Slot()
-{
-    // 串口接收已移动到控制核心。
-}
-
-// 提取实测电流。STM32 输出形如：
-// "Laser1: DAC=..., 输入电流=0.123A, 输入电压=..., 输出电流=0.118A, 输出电压=..."
-void Widget::parseMeasuredFromLine(const QString &line)
-{
-    QRegularExpression re(QString::fromUtf8(u8"Laser([123])[^\\n]*?输出电流\\s*=\\s*([0-9]+\\.?[0-9]*)\\s*A"));
-    QRegularExpressionMatch m = re.match(line);
-    if (!m.hasMatch()) return;
-    int idx = m.captured(1).toInt();
-    double amps = m.captured(2).toDouble();
-    double mA = amps * 1000.0;
-    switch (idx) {
-    case 1: measuredLaser1mA = mA; chart1->addMeasuredPoint(mA); updateLaserVisual(1); break;
-    case 2: measuredLaser2mA = mA; chart2->addMeasuredPoint(mA); updateLaserVisual(2); break;
-    case 3: measuredLaser3mA = mA; chart3->addMeasuredPoint(mA); updateLaserVisual(3); break;
-    }
-}
-
 // ===================== 发送 =====================
-void Widget::sendLaserCommand(int laserIndex, char cmd)
-{
-    Q_UNUSED(laserIndex);
-    Q_UNUSED(cmd);
-    // 单字节发送已封装在 LaserController 内，界面层不再直接发送串口命令。
-}
 
 void Widget::setLaserReady(int laserIndex, bool ready)
 {

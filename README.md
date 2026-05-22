@@ -154,9 +154,127 @@ L1 StartupL1 三段启动
 
 开发者页面每路都有独立参数按钮。保存时会写回对应配置段，并生成 `laser_config.ini.bak`。
 
-## 8. 安全注意
+## 8. 温度检测与就绪状态
+
+当前系统有两层就绪状态：
+
+```text
+laserXRawReady  ->  laserXReady
+```
+
+| 状态 | 含义 | 主要来源 |
+|---|---|---|
+| `laserXRawReady` | STM32 原始温度/就绪状态 | 串口文本解析；当前发送成功后也会辅助置 true |
+| `laserXReady` | 上位机按依赖链计算后的最终就绪状态 | `updateLaserDependencies()` |
+
+依赖链计算规则：
+
+```text
+L1 ready = L1 rawReady
+L2 ready = L1 ready && L2 rawReady
+L3 ready = L1 ready && L2 ready && L3 rawReady
+```
+
+### 8.1 下位机温度检测
+
+STM32 端主要使用 GPIO 温度状态：
+
+| 通道 | 温度输入 | 下位机逻辑 |
+|---|---|---|
+| L1 | `PB13` | 每 200 ms 防抖检测，变化时打印温度就绪/未就绪 |
+| L2 | `PB14` | 每 200 ms 防抖检测，变化时打印温度就绪/未就绪 |
+| L3 | 当前默认就绪 | `temp_status_prev3 = 1`，L3 温度检测代码当前被注释 |
+
+下位机使能关系：
+
+```text
+L1 enable = L1 温度就绪
+L2 enable = L1 温度就绪 && L2 温度就绪
+L3 enable = L1 温度就绪 && L2 温度就绪 && L3 温度就绪
+```
+
+下位机是最后一道保护：即使上位机错误发送了命令，STM32 在执行 L1/L2/L3 指令前仍会检查温度优先级，不满足时会打印错误并拒绝执行。
+
+### 8.2 上位机解析路径
+
+上位机在 `LaserController::serialPortReadyRead()` 中按行解析 STM32 输出。
+
+当前支持的典型文本：
+
+| 通道 | 就绪文本 | 未就绪文本 |
+|---|---|---|
+| L1 | `Laser1:温度就绪`、`Laser1就绪`、`laser1ready`、`L1:OK` | `Laser1:温度未就绪`、`Laser1未就绪`、`laser1notready`、`L1:NG` |
+| L2 | `Laser2:温度就绪`、`Laser2就绪`、`laser2ready`、`L2:OK` | `Laser2:温度未就绪`、`Laser2未就绪`、`laser2notready`、`L2:NG` |
+| L3 | `Laser3:温度就绪`、`Laser3就绪`、`laser3ready`、`L3:OK` | `Laser3:温度未就绪`、`Laser3未就绪`、`laser3notready`、`L3:NG` |
+
+解析后如果 rawReady 发生变化，会调用 `updateLaserDependencies()` 重新计算三路最终 ready，并通过 `readyChanged`、`stateChanged` 通知界面。
+
+### 8.3 联锁使用的是 rawReady
+
+安全联锁使用 `laserReadyForStartup()`，真实模式下读取的是 `laserRawReady()`，不是 `laserReady()`。
+
+| 操作 | 温度/就绪条件 |
+|---|---|
+| L1 升高 | L1 rawReady |
+| L2 升高 | L1 rawReady && L2 rawReady |
+| L3 升高 | L1 rawReady && L2 rawReady && L3 rawReady |
+| L3 降低 | 不要求温度 ready |
+| L2 降低 | 不要求温度 ready，但要求 L3 已回安全态 |
+| L1 降低 | 不要求温度 ready，但要求 L2/L3 已回安全态 |
+
+开发者页面会订阅 `readyChanged` 并显示状态灯；普通操作员页面不直接显示温度状态，而是通过按钮禁用和 tooltip 间接提示，例如“等待 L1 温度就绪”。
+
+### 8.4 当前隐患
+
+1. `updateLaserStatusFromSend()` 会在发送成功后把对应通道 `rawReady` 置为 true。
+
+   当前协议里，上位机把一次串口 write 成功视为“该路可控”的辅助依据。这个逻辑不等价于真实温度就绪，也不等价于 STM32 已执行命令。若 STM32 停止上报状态，上位机可能长期保留旧的 ready 状态。
+
+2. 目前没有 ACK/NAK 确认。
+
+   上位机在 `sendLaserCommand()` 成功写出字节后就更新软件 setpoint；但串口写出成功只说明字节进入发送缓冲，不代表 STM32 已执行。如果 STM32 因温度未就绪拒绝命令，上位机 setpoint 仍可能提前变化，造成软件显示与真实硬件输出不一致。
+
+3. STM32 温度状态不是周期性心跳。
+
+   下位机目前只在温度状态变化时打印就绪/未就绪。如果上位机打开串口时错过了之前的就绪消息，就可能不知道当前真实温度状态；如果后续状态不再变化，上位机也不会自动重新获得完整状态。
+
+4. `checkLaserStatus()` 不是实际轮询。
+
+   上位机每 3 秒调用一次 `updateLaserDependencies()`，但它只是把已有 rawReady 重新计算成 ready；如果 rawReady 没有新的串口输入或复位动作，这个定时器不会主动发现温度变化。
+
+5. 文本协议解析较脆弱。
+
+   当前解析依赖字符串包含匹配。虽然会去掉普通空格并兼容 UTF-8/GBK，但如果 STM32 输出格式、标点、大小写或语言变化，可能导致上位机无法识别温度状态。
+
+6. L3 温度状态当前设计不完整。
+
+   STM32 当前把 L3 初始化为温度就绪，并注释掉 L3 温度检测代码。上位机仍保留 L3 rawReady/ready 逻辑，但真实系统中 L3 是否需要独立温度输入，需要按硬件设计最终确认。
+
+### 8.5 建议改进方向
+
+推荐后续逐步改成结构化闭环：
+
+```text
+STM32 周期性上报 STAT
+        -> 上位机按时间戳更新 rawReady
+        -> 超时未收到则置为 unknown/not ready
+        -> 上位机发送 CMD 带序号
+        -> STM32 回复 ACK/NAK
+        -> 只有 ACK 后才更新 setpoint
+```
+
+建议优先级：
+
+1. 取消或限制“发送成功后强制 rawReady=true”的逻辑。
+2. STM32 周期性上报 L1/L2/L3 温度状态和 enable 状态。
+3. 上位机为 rawReady 增加超时保护，超时后禁止继续升高。
+4. 增加 ACK/NAK、命令序号和超时重试。
+5. 将文本协议升级为结构化协议，例如 `STAT,L1,READY`、`ACK,1,98`、`NAK,2,TEMP_NOT_READY`。
+
+## 9. 安全注意
 
 - 生产环境应关闭 `DEBUG_MODE`，否则不会真正通过串口控制硬件。
 - 当前软件电流主要是上位机 setpoint，实测电流只用于显示和曲线观察。
+- 当前温度 ready 主要来自 STM32 事件文本和上位机本地状态，尚未形成带超时的闭环心跳。
 - 如果 setpoint 和实测值差异明显，应暂停操作并检查硬件响应、温度就绪、驱动饱和或保护状态。
 - 后续建议继续完善 ACK/NAK、序号、CRC、超时重试和实测电流闭环联锁。
