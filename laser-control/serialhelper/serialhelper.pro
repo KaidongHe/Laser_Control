@@ -10,7 +10,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = serial
 TEMPLATE = app
-CONFIG += utf8_source
+#CONFIG += utf8_source
 
 # 高DPI支持
 DEFINES += QT_SCALE_FACTOR_ROUNDING_POLICY=PassThrough
@@ -40,26 +40,32 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
         main.cpp \
+        operatorform.cpp \
+        lasercontroller.cpp \
         widget.cpp \
         laserchart.cpp \
-        operatorwindow.cpp
+        pillspinbox.cpp
 
 HEADERS += \
+        operatorform.h \
+        lasercontroller.h \
         widget.h \
         laserchart.h \
-        operatorwindow.h
+        pillspinbox.h
 
 FORMS += \
+        operatorform.ui \
         widget.ui
+
+DISTFILES += \
+        laser_config.ini
 
 RC_ICONS=serialhelp.ico
 
 # Source files are UTF-8. Use the compiler-specific flag so Chinese UI text
 # stays correct on both MSVC and MinGW/GCC builds.
 msvc {
-    QMAKE_CXXFLAGS += /utf-8 /source-charset:utf-8 /execution-charset:utf-8
+    QMAKE_CXXFLAGS += /utf-8
 } else {
     QMAKE_CXXFLAGS += -finput-charset=UTF-8 -fexec-charset=UTF-8
 }
-
-

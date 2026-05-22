@@ -81,7 +81,7 @@ void LaserChart::paintEvent(QPaintEvent *)
     int w = width();
     int h = height();
 
-    // 背景
+
     p.fillRect(rect(), QColor(30, 30, 30));
 
     int marginLeft = 55;
@@ -93,7 +93,7 @@ void LaserChart::paintEvent(QPaintEvent *)
 
     if (plotW <= 0 || plotH <= 0) return;
 
-    // 标题
+
     p.setPen(Qt::white);
     QFont titleFont = font();
     titleFont.setPointSize(9);
@@ -101,7 +101,7 @@ void LaserChart::paintEvent(QPaintEvent *)
     p.setFont(titleFont);
     p.drawText(0, 2, w, marginTop - 4, Qt::AlignHCenter | Qt::AlignVCenter, m_title);
 
-    // 网格线
+
     QFont axisFont = font();
     axisFont.setPointSize(7);
     p.setFont(axisFont);
@@ -134,7 +134,7 @@ void LaserChart::paintEvent(QPaintEvent *)
                    QString("阈值 %1").arg(m_threshold));
     }
 
-    // 无数据
+
     if (m_data.isEmpty() && m_measured.isEmpty()) {
         p.setPen(QColor(120, 120, 120));
         QFont hintFont = font();
@@ -147,7 +147,7 @@ void LaserChart::paintEvent(QPaintEvent *)
     qint64 now = QDateTime::currentMSecsSinceEpoch();
     qint64 windowStart = now - m_timeWindowSec * 1000LL;
 
-    // X轴时间标签
+
     p.setFont(axisFont);
     int xSteps = 4;
     for (int i = 0; i <= xSteps; i++) {
@@ -186,14 +186,14 @@ void LaserChart::paintEvent(QPaintEvent *)
         }
     };
 
-    // 设定值（虚线）
+
     drawSeries(m_data, m_lineColor, Qt::DashLine, 1.5);
-    // 实测值（实线，更粗）
+
     drawSeries(m_measured, m_measuredColor, Qt::SolidLine, 2.0);
 
     p.setClipping(false);
 
-    // 右上角读数
+
     QFont valFont = font();
     valFont.setPointSize(8);
     valFont.setBold(true);

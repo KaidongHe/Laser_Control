@@ -1,4 +1,4 @@
-#include "operatorwindow.h"
+#include "operatorform.h"
 #include <QApplication>
 #include <QTextCodec>
 
@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
     // 设置全局默认编码为 UTF-8，防止中文乱码
     QTextCodec::setCodecForLocale(QTextCodec::codecForName("UTF-8"));
 
-    OperatorWindow w;
+    operatorForm w;
     w.show();
 
     return a.exec();

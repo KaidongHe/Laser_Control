@@ -12,11 +12,8 @@
 #include <QTimer>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include "lasercontroller.h"
 #include "laserchart.h"
-
-// ===== Debug模式宏定义 =====
-// 取消注释下面这行以启用Debug模式
-#define DEBUG_MODE
 
 namespace Ui {
 class Widget;
@@ -27,7 +24,7 @@ class Widget : public QWidget
     Q_OBJECT
 
 public:
-    explicit Widget(QWidget *parent = 0);
+    explicit Widget(LaserController *controller = nullptr, QWidget *parent = 0);
     ~Widget();
 
     void sendLaserCommand(int laserIndex, char cmd);
@@ -64,11 +61,16 @@ private slots:
     void autoReconnectSerialPort();
     void handleSerialError(QSerialPort::SerialPortError error);
     void checkLaserStatus();
+    void on_laser1ParamsButton_clicked();
+    void on_laser2ParamsButton_clicked();
+    void on_laser3ParamsButton_clicked();
     void on_tryButton_clicked();
     void tryStep();
 
 private:
     Ui::Widget *ui;
+    LaserController *controller = nullptr;
+    bool ownsController = false;
     QSerialPort *serialPort;
 
     int currentLaser1mA;
@@ -80,8 +82,8 @@ private:
     double measuredLaser2mA = -1;
     double measuredLaser3mA = -1;
 
-    // 当前模式：true=粗调（步长10），false=细调（步长1）
-    bool laser1Coarse = true;
+    // 当前模式：true=粗调（步长10），false=细调（步长1）；L1 默认使用 1 mA 细调。
+    bool laser1Coarse = false;
     bool laser2Coarse = true;
 
     QElapsedTimer lastSentTimers[3];
@@ -106,7 +108,17 @@ private:
 
     // TRY扫描
     QTimer *tryTimer;
-    enum TryState { TryIdle, TryPhase1, TryPhase2, TryPhase3, TryPhaseL2, TryPhaseL3 };
+    enum TryState {
+        TryIdle,
+        TryPhase1,
+        TryPhase2,
+        TryPhase3,
+        TryPhaseL2Start1,
+        TryPhaseL2Start2,
+        TryPhaseL2Start3,
+        TryPhaseL2,
+        TryPhaseL3
+    };
     TryState tryState = TryIdle;
     int tryCurrent = 0;            // L1 扫描的当前电流
     int tryL2Current = 0;          // L2 扫描的当前电流
@@ -114,8 +126,18 @@ private:
     int tryPhase1TimeSec = 90;
     int tryPhase2TimeSec = 90;
     int tryPhase3TimeSec = 90;
-    int tryStepSize = 10;
+    int tryStepSize = 1;
+    int tryL1HighCurrent = 850;
+    int tryL1MiddleCurrent = 200;
     int tryFinalCurrent = 98;
+    // L2 启动曲线和普通操作员页面共用；完成后才进入 L2 额外扫描目标。
+    int tryL2HighCurrent = 850;
+    int tryL2MiddleCurrent = 200;
+    int tryL2FinalCurrent = LaserController::L2_ENABLE_L3_MA;
+    int tryL2Phase1TimeSec = 40;
+    int tryL2Phase2TimeSec = 15;
+    int tryL2Phase3TimeSec = 5;
+    int tryL2StartupStepSize = 10;
     // L2 扫描参数
     int tryL2TargetMA = 460;       // L2 终点电流
     int tryL2StepSize = 10;        // L2 步长
@@ -135,6 +157,7 @@ private:
     void resetLaserStates();
     void updateLaserDependencies();
     bool canControlLaser(int laserIndex);
+    bool canAdjustLaser(int laserIndex, int direction) const;       // 按升高/降低方向判断顺序联锁
     void updateAllLaserStates();
     void updateLaserStatusFromSend(int laserIndex);
     void tryAutoActivateLasers();
@@ -142,10 +165,18 @@ private:
     // ===== 新增：可视化辅助 =====
     void adjustLaser(int laserIndex, int direction);   // +1 / -1
     void updateLaserVisual(int laserIndex);            // 刷新读数、按钮可用、提示
+    void updateAllLaserVisuals();                      // 三路联锁互相影响，电流变化后统一刷新全部按钮和提示
     void setLaser1Mode(bool coarse);
     void setLaser2Mode(bool coarse);
+    void applyDeveloperRuntimeParams(const LaserController::DeveloperRuntimeParams &params);
+    bool canEditDeveloperParams() const;
+    bool saveLaserParamsFromDialog(int laserIndex, const LaserController::DeveloperRuntimeParams &params);
     void parseMeasuredFromLine(const QString &line);
     QString blockReason(int laserIndex) const;
+    QString adjustBlockReason(int laserIndex, int direction) const; // 返回更具体的顺序联锁阻塞原因
+    bool hasLaserTransport() const;                                 // Debug 模式下模拟串口可用，真实模式下检查串口
+    bool laserReadyForStartup(int laserIndex) const;                // Debug 模式下忽略就绪信号，真实模式下读取原始就绪状态
+    int commandDirectionForLaser(int laserIndex, char cmd) const;   // 从单字节命令反推出升高/降低方向
 };
 
 #endif // WIDGET_H

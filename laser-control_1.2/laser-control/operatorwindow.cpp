@@ -22,8 +22,8 @@ OperatorWindow::OperatorWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    updateToggleButton(ui->seedButton, seedEnabled, QString::fromUtf8("L1 开/关（种子）"));
-    updateToggleButton(ui->preReleaseButton, preReleaseEnabled, QString::fromUtf8("预放开/关"));
+    updateToggleButton(ui->seedButton, seedEnabled, QString("L1 open"));
+    updateToggleButton(ui->preReleaseButton, preReleaseEnabled, QString("yufang open"));
 
     connect(ui->seedButton, &QPushButton::clicked, this, &OperatorWindow::toggleSeed);
     connect(ui->preReleaseButton, &QPushButton::clicked, this, &OperatorWindow::togglePreRelease);

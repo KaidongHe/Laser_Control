@@ -1,4 +1,5 @@
 QT       += core gui
+QT += serialport
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -16,14 +17,23 @@ DEFINES += QT_DEPRECATED_WARNINGS
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
+    laserchart.cpp \
     main.cpp \
-    mainwindow.cpp
+    mainwindow.cpp \
+    operatorwindow.cpp \
+    widget.cpp
 
 HEADERS += \
-    mainwindow.h
+    laserchart.h \
+    mainwindow.h \
+    operatorwindow.h \
+    ui_operatorwindow.h \
+    ui_widget.h \
+    widget.h
 
 FORMS += \
-    mainwindow.ui
+    mainwindow.ui \
+    widget.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

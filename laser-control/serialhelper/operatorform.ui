@@ -1,21 +1,309 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <author/>
- <comment/>
- <exportmacro/>
  <class>operatorForm</class>
  <widget class="QWidget" name="operatorForm">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>400</width>
-    <height>300</height>
+    <width>555</width>
+    <height>635</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>Form</string>
+  <property name="minimumSize">
+   <size>
+    <width>400</width>
+    <height>580</height>
+   </size>
   </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget#operatorForm { background: #EEF2F7; }
+QFrame#panel {
+  background: #ffffff;
+  border: 1px solid #DCE3EE;
+  border-radius: 10px;
+}
+QLabel#titleLabel {
+  color: #22304f;
+  font-family: 'Microsoft YaHei';
+  font-size: 22px;
+  font-weight: 600;
+}
+QLabel#subtitleLabel, QLabel#powerLabel {
+  color: #7E8794;
+  font-family: 'Microsoft YaHei';
+  font-size: 15px;
+  font-weight: 500;
+}
+QPushButton#seedButton, QPushButton#preReleaseButton {
+  background: #2f6fd6;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Microsoft YaHei';
+  font-size: 22px;
+  font-weight: 600;
+  min-height: 78px;
+}
+QPushButton#seedButton:hover, QPushButton#preReleaseButton:hover {
+  background: #245fbd;
+}
+QPushButton#seedButton[active='true'], QPushButton#preReleaseButton[active='true'] {
+  background: #197A50;
+}
+QPushButton#seedButton[active='true']:hover, QPushButton#preReleaseButton[active='true']:hover {
+  background: #166B46;
+}
+QPushButton#seedButton:disabled, QPushButton#preReleaseButton:disabled {
+  background: #C8D0DC;
+  color: #F5F7FA;
+}
+QPushButton#seedButton[busy='true'], QPushButton#preReleaseButton[busy='true'],
+QPushButton#seedButton[busy='true']:disabled, QPushButton#preReleaseButton[busy='true']:disabled {
+  background: #D69A1E;
+  color: white;
+}
+QPushButton#developerButton {
+  background: transparent;
+  color: #9AA4B2;
+  border: none;
+  padding: 6px 10px;
+  font-family: 'Microsoft YaHei';
+  font-size: 12px;
+}
+QPushButton#developerButton:hover {
+  color: #5F6B7A;
+  background: rgba(47, 111, 214, 0.06);
+}
+QComboBox#serialComboBox {
+  background: #F7F9FC;
+  color: #3A4658;
+  border: 1px solid #D6DEE9;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: 'Microsoft YaHei';
+  font-size: 12px;
+}
+QComboBox#serialComboBox:disabled {
+  color: #8C97A6;
+  background: #EDF1F6;
+}
+QPushButton#serialConnectButton {
+  background: #2F6FD6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-family: 'Microsoft YaHei';
+  font-size: 12px;
+  font-weight: 600;
+}
+QPushButton#serialConnectButton:disabled {
+  background: #C8D0DC;
+  color: #F5F7FA;
+}
+QLabel#serialStatusLabel {
+  color: #9AA4B2;
+  font-family: 'Microsoft YaHei';
+  font-size: 12px;
+  font-weight: 600;
+}</string>
+  </property>
+  <widget class="QFrame" name="panel">
+   <property name="geometry">
+    <rect>
+     <x>60</x>
+     <y>70</y>
+     <width>430</width>
+     <height>490</height>
+    </rect>
+   </property>
+   <property name="minimumSize">
+    <size>
+     <width>430</width>
+     <height>490</height>
+    </size>
+   </property>
+   <property name="maximumSize">
+    <size>
+     <width>520</width>
+     <height>16777215</height>
+    </size>
+   </property>
+   <layout class="QGridLayout" name="gridLayout">
+    <property name="leftMargin">
+     <number>42</number>
+    </property>
+    <property name="topMargin">
+     <number>26</number>
+    </property>
+    <property name="rightMargin">
+     <number>42</number>
+    </property>
+    <property name="bottomMargin">
+     <number>18</number>
+    </property>
+    <property name="spacing">
+     <number>18</number>
+    </property>
+    <item row="1" column="0">
+     <widget class="QPushButton" name="seedButton">
+      <property name="cursor">
+       <cursorShape>PointingHandCursor</cursorShape>
+      </property>
+      <property name="text">
+       <string>L1 开/关（种子）
+已关闭</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="0">
+     <widget class="PillSpinBox" name="powerSpinBox">
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+      <property name="buttonSymbols">
+       <enum>QAbstractSpinBox::PlusMinus</enum>
+      </property>
+      <property name="suffix">
+       <string/>
+      </property>
+      <property name="minimum">
+       <number>2</number>
+      </property>
+      <property name="maximum">
+       <number>100</number>
+      </property>
+      <property name="value">
+       <number>2</number>
+      </property>
+     </widget>
+    </item>
+    <item row="6" column="0">
+     <layout class="QHBoxLayout" name="developerRow">
+      <item>
+       <spacer name="developerSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>16</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QLabel" name="serialStatusLabel">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>● 未连接</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QComboBox" name="serialComboBox">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>选择普通模式要连接的串口</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="serialConnectButton">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>30</height>
+         </size>
+        </property>
+        <property name="cursor">
+         <cursorShape>PointingHandCursor</cursorShape>
+        </property>
+        <property name="text">
+         <string>连接</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="2" column="0">
+     <widget class="QPushButton" name="preReleaseButton">
+      <property name="cursor">
+       <cursorShape>PointingHandCursor</cursorShape>
+      </property>
+      <property name="text">
+       <string>预放开/关
+已关闭</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="powerLabel">
+      <property name="text">
+       <string>&lt;div align=&quot;center&quot;&gt;&lt;span style=&quot;color:#9AA4B2; font-size:11px; font-weight:600;&quot;&gt;OUTPUT POWER&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot;color:#7E8794; font-size:15px; font-weight:500;&quot;&gt;功率调节&lt;/span&gt;&lt;/div&gt;</string>
+      </property>
+      <property name="textFormat">
+       <enum>Qt::RichText</enum>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QLabel" name="titleLabel">
+      <property name="text">
+       <string>&lt;div align=&quot;center&quot;&gt;&lt;span style=&quot;color:#197A50; font-size:18px;&quot;&gt;●&lt;/span&gt; &lt;span style=&quot;color:#7E8794; font-size:12px; font-weight:600;&quot;&gt;LASER CONTROL&lt;/span&gt;&lt;br/&gt;&lt;span style=&quot;color:#22304F; font-size:24px; font-weight:600;&quot;&gt;激光控制&lt;/span&gt;&lt;/div&gt;</string>
+      </property>
+      <property name="textFormat">
+       <enum>Qt::RichText</enum>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QPushButton" name="developerButton">
+   <property name="geometry">
+    <rect>
+     <x>440</x>
+     <y>580</y>
+     <width>91</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="cursor">
+    <cursorShape>PointingHandCursor</cursorShape>
+   </property>
+   <property name="text">
+    <string>开发者</string>
+   </property>
+  </widget>
  </widget>
- <pixmapfunction/>
+ <customwidgets>
+  <customwidget>
+   <class>PillSpinBox</class>
+   <extends>QSpinBox</extends>
+   <header>pillspinbox.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
  <connections/>
 </ui>

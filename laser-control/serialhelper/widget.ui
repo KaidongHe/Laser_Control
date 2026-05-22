@@ -109,10 +109,11 @@ QPushButton#tryButton:hover { background-color: #CC5500; }</string>
          <item>
           <layout class="QHBoxLayout" name="mode1Row">
            <item><widget class="QLabel" name="mode1Title"><property name="text"><string>模式</string></property></widget></item>
-           <item><widget class="QPushButton" name="laser1CoarseBtn"><property name="text"><string>粗调 ±10</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-           <item><widget class="QPushButton" name="laser1FineBtn"><property name="text"><string>细调 ±1</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-           <item><widget class="QComboBox" name="laser1ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
-          </layout>
+            <item><widget class="QPushButton" name="laser1CoarseBtn"><property name="text"><string>粗调 ±10</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="laser1FineBtn"><property name="text"><string>细调 ±1</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="laser1ParamsButton"><property name="text"><string>参数</string></property></widget></item>
+            <item><widget class="QComboBox" name="laser1ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
+           </layout>
          </item>
          <item>
           <widget class="QLabel" name="reasonLabel1"><property name="text"><string/></property><property name="wordWrap"><bool>true</bool></property></widget>
@@ -166,11 +167,12 @@ QPushButton#tryButton:hover { background-color: #CC5500; }</string>
          </item>
          <item>
           <layout class="QHBoxLayout" name="mode2Row">
-           <item><widget class="QLabel" name="mode2Title"><property name="text"><string>模式</string></property></widget></item>
-           <item><widget class="QPushButton" name="laser2CoarseBtn"><property name="text"><string>粗调 ±10</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-           <item><widget class="QPushButton" name="laser2FineBtn"><property name="text"><string>细调 ±1</string></property><property name="checkable"><bool>true</bool></property></widget></item>
-           <item><widget class="QComboBox" name="laser2ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
-          </layout>
+            <item><widget class="QLabel" name="mode2Title"><property name="text"><string>模式</string></property></widget></item>
+            <item><widget class="QPushButton" name="laser2CoarseBtn"><property name="text"><string>粗调 ±10</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="laser2FineBtn"><property name="text"><string>细调 ±1</string></property><property name="checkable"><bool>true</bool></property></widget></item>
+            <item><widget class="QPushButton" name="laser2ParamsButton"><property name="text"><string>参数</string></property></widget></item>
+            <item><widget class="QComboBox" name="laser2ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
+           </layout>
          </item>
          <item>
           <widget class="QLabel" name="reasonLabel2"><property name="text"><string/></property><property name="wordWrap"><bool>true</bool></property></widget>
@@ -223,11 +225,12 @@ QPushButton#tryButton:hover { background-color: #CC5500; }</string>
           </layout>
          </item>
          <item>
-          <layout class="QHBoxLayout" name="mode3Row">
-           <item><widget class="QLabel" name="mode3Title"><property name="text"><string>步长 100 mA</string></property></widget></item>
-           <item><spacer name="s3b"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>10</height></size></property></spacer></item>
-           <item><widget class="QComboBox" name="laser3ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
-          </layout>
+           <layout class="QHBoxLayout" name="mode3Row">
+            <item><widget class="QLabel" name="mode3Title"><property name="text"><string>步长 100 mA</string></property></widget></item>
+            <item><spacer name="s3b"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>10</height></size></property></spacer></item>
+            <item><widget class="QPushButton" name="laser3ParamsButton"><property name="text"><string>参数</string></property></widget></item>
+            <item><widget class="QComboBox" name="laser3ModeCb"><property name="visible"><bool>false</bool></property></widget></item>
+           </layout>
          </item>
          <item>
           <widget class="QLabel" name="reasonLabel3"><property name="text"><string/></property><property name="wordWrap"><bool>true</bool></property></widget>
@@ -255,11 +258,11 @@ QPushButton#tryButton:hover { background-color: #CC5500; }</string>
      <item><widget class="QComboBox" name="serialCb"/></item>
      <item><widget class="QPushButton" name="openBt"><property name="text"><string>打开串口</string></property></widget></item>
      <item><widget class="QPushButton" name="closeBt"><property name="text"><string>关闭串口</string></property></widget></item>
-     <item><widget class="QPushButton" name="sendBt"><property name="text"><string>发送数据</string></property><property name="visible"><bool>false</bool></property></widget></item>
-     <item><widget class="QPushButton" name="clearBt"><property name="text"><string>清空文本</string></property></widget></item>
-     <item><widget class="QPushButton" name="tryButton"><property name="minimumSize"><size><width>120</width><height>32</height></size></property><property name="text"><string>全段扫描 (TRY)</string></property></widget></item>
-    </layout>
-   </item>
+      <item><widget class="QPushButton" name="sendBt"><property name="text"><string>发送数据</string></property><property name="visible"><bool>false</bool></property></widget></item>
+      <item><widget class="QPushButton" name="clearBt"><property name="text"><string>清空文本</string></property></widget></item>
+      <item><widget class="QPushButton" name="tryButton"><property name="minimumSize"><size><width>120</width><height>32</height></size></property><property name="text"><string>全段扫描 (TRY)</string></property></widget></item>
+     </layout>
+    </item>
 
   </layout>
  </widget>

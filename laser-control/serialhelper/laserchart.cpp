@@ -114,12 +114,12 @@ void LaserChart::paintEvent(QPaintEvent *)
 
         int val = m_yMax - (m_yMax - m_yMin) * i / ySteps;
         p.setPen(QColor(180, 180, 180));
-        p.drawText(0, y - 8, marginLeft - 4, 16, Qt::AlignRight | Qt::AlignVCenter, QString::number(val));
+        p.drawText(0, y - 8, marginLeft - 12, 16, Qt::AlignRight | Qt::AlignVCenter, QString::number(val));
     }
 
     // Y轴单位
     p.setPen(QColor(180, 180, 180));
-    p.drawText(2, 2, 50, 14, Qt::AlignLeft, "mA");
+    p.drawText(5, 2, 50, 14, Qt::AlignLeft, "mA");
 
     // 阈值线
     if (m_thresholdEnabled && m_threshold > m_yMin && m_threshold < m_yMax) {
@@ -156,7 +156,7 @@ void LaserChart::paintEvent(QPaintEvent *)
         QString label = dt.toString("mm:ss");
         int x = marginLeft + plotW * i / xSteps;
         p.setPen(QColor(180, 180, 180));
-        p.drawText(x - 25, marginTop + plotH + 2, 50, marginBottom - 4, Qt::AlignHCenter, label);
+        p.drawText(x - 25, marginTop + plotH + 8, 50, marginBottom - 4, Qt::AlignHCenter, label);
     }
 
     p.setClipRect(marginLeft, marginTop, plotW, plotH);
@@ -211,4 +211,9 @@ void LaserChart::paintEvent(QPaintEvent *)
         QString s = QString("实测 %1").arg(m_measured.last().y(), 0, 'f', 0);
         p.drawText(marginLeft, textY, plotW - 4, 14, Qt::AlignRight, s);
     }
+}
+
+LaserChart::~LaserChart()
+{
+
 }

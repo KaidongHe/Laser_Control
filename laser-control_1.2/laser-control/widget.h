@@ -15,7 +15,6 @@
 #include "laserchart.h"
 
 // ===== Debug模式宏定义 =====
-// 取消注释下面这行以启用Debug模式
 #define DEBUG_MODE
 
 namespace Ui {

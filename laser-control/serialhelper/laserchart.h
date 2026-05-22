@@ -11,13 +11,14 @@ class LaserChart : public QWidget
     Q_OBJECT
 
 public:
-    explicit LaserChart(QWidget *parent = nullptr);
+    explicit LaserChart(QWidget *parent = 0);
+    ~LaserChart();
 
     void setTitle(const QString &title);
     void setYRange(int min, int max);
     void setTimeWindow(int seconds);
     void setLineColor(const QColor &c);          // 设定值曲线颜色
-    void setMeasuredColor(const QColor &c);      // 实测值曲线颜色
+    void setMeasuredColor(const QColor &c);     // 实测值曲线颜色
     void setThreshold(int value, bool enabled = true); // 阈值线，<=0 表示不画
     void addDataPoint(int current_mA);           // 设定值
     void addMeasuredPoint(double current_mA);    // 实测值

@@ -5,6 +5,7 @@
 
 class QPushButton;
 class QSpinBox;
+class operatorForm;
 class Widget;
 
 class OperatorWindow : public QWidget
@@ -25,6 +26,7 @@ private:
     void setupUi();
     void updateToggleButton(QPushButton *button, bool enabled, const QString &label);
 
+    operatorForm *form = nullptr;
     QPushButton *seedButton = nullptr;
     QPushButton *preReleaseButton = nullptr;
     QSpinBox *powerSpinBox = nullptr;
