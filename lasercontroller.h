@@ -191,9 +191,9 @@ private:
         int l3MinMa = L3_SAFE_OFF_MA;
         int l3MaxMa = 5000;
 
-        int defaultRampIntervalMs = 100;
-        int minRampIntervalMs = 1;
-        int minManualSendIntervalMs = 120;
+        int defaultRampIntervalMs = 67;
+        int minRampIntervalMs = 67;
+        int minManualSendIntervalMs = 67;
         bool temperatureReadyBypass = false;
 
         int tryL1Phase1TimeSec = 90;

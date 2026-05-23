@@ -10,6 +10,7 @@ static const QColor COLOR_L1(0, 200, 255);
 static const QColor COLOR_L2(255, 160, 64);
 static const QColor COLOR_L3(192, 128, 255);
 static const QColor COLOR_MEASURED(255, 200, 64);
+static constexpr int kTryMinIntervalMs = 67; // TRY 最快按 15Hz 推进，和控制核心全局发送硬限速保持一致。
 
 static int normalizeDeveloperStepChoice(int stepMa)
 {
@@ -39,7 +40,7 @@ static int tryIntervalForSegment(int currentMa, int targetMa, int stepMa, int ti
     const int step = qMax(1, normalizeDeveloperStepChoice(stepMa));
     const int diff = qAbs(targetMa - currentMa);
     const int steps = qMax(1, (diff + step - 1) / step);
-    return qMax(1, (qMax(1, timeSec) * 1000) / steps);
+    return qMax(kTryMinIntervalMs, (qMax(1, timeSec) * 1000) / steps);
 }
 
 Widget::Widget(LaserController *sharedController, QWidget *parent) :
@@ -1032,7 +1033,8 @@ void Widget::tryStep()
                 updateAllLaserVisuals();
                 return;
             }
-            tryTimer->setInterval((tryL3TimeSec * 1000) / n3);
+            // L3 也按 15Hz 最快节奏限制，避免 TRY 定时器比真实串口发送节奏更快而空转。
+            tryTimer->setInterval(qMax(kTryMinIntervalMs, (tryL3TimeSec * 1000) / n3));
             ui->receiveEdit->appendPlainText(QString("[TRY] L2 完成，进入 L3 扫描: %1 → %2 mA (步长 %3, 时长 %4s)")
                 .arg(tryL3Current).arg(tryL3TargetMA).arg(tryL3StepSize).arg(tryL3TimeSec));
             return;
