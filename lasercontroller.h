@@ -8,7 +8,7 @@
 
 // ===== Debug模式宏定义 =====
 // 控制核心也使用同一 Debug 开关，避免界面和控制层对“是否需要真实串口”的理解不一致。
-//#define DEBUG_MODE
+#define DEBUG_MODE
 
 class QTimer;
 
@@ -29,7 +29,7 @@ public:
     struct DeveloperRuntimeParams
     {
         int operatorL1FinalMa = 98;
-        int operatorL2FinalMa = L2_ENABLE_L3_MA;
+        int operatorL2FinalMa = 460;
         int l3OperatorMaxMa = 5000;
 
         int startupL1HighMa = 850;
@@ -38,12 +38,8 @@ public:
         int startupL1Phase2TimeSec = 90;
         int startupL1Phase3TimeSec = 90;
         int startupL1StepMa = 1;
-        int startupL2HighMa = 850;
-        int startupL2MiddleMa = 200;
-        int startupL2Phase1TimeSec = 40;
-        int startupL2Phase2TimeSec = 15;
-        int startupL2Phase3TimeSec = 5;
         int startupL2StepMa = 10;
+        int startupL2Phase1TimeSec = 30;   // L2 单段缓升总时长
 
         // L1 TRY 启动参数已经统一到 startupL1*，保留这些字段用于兼容旧界面变量。
         int tryL1Phase1TimeSec = 90;
@@ -178,8 +174,8 @@ private:
 
         int startupL2HighMa = 850;
         int startupL2MiddleMa = 200;
-        int startupL2FinalMa = L2_ENABLE_L3_MA;
-        int startupL2RiseDurationMs = 40000;
+        int startupL2FinalMa = 460;
+        int startupL2RiseDurationMs = 30000;
         int startupL2FallMiddleDurationMs = 15000;
         int startupL2FallFinalDurationMs = 5000;
         int startupL2StepMa = 10;
@@ -195,7 +191,7 @@ private:
         int l3MinMa = L3_SAFE_OFF_MA;
         int l3MaxMa = 5000;
 
-        int defaultRampIntervalMs = 150;
+        int defaultRampIntervalMs = 100;
         int minRampIntervalMs = 1;
         int minManualSendIntervalMs = 120;
         bool temperatureReadyBypass = false;
@@ -232,8 +228,9 @@ private:
     bool laser3Ready = false;
 
     QElapsedTimer lastSentTimers[3];
+    QElapsedTimer globalSendTimer; // 全局串口发送硬限速：任意两条真实命令之间至少间隔约 67ms，避免跨通道叠加超 15Hz
     int minSendIntervalMs = 120;
-    int rampIntervalMs = 150;
+    int rampIntervalMs = 100;
     QByteArray rxBuffer;
 
     int rampLaserIndex = 0;

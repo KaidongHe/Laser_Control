@@ -93,7 +93,7 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     });
     connect(controller, &LaserController::stateChanged, this, &Widget::updateAllLaserVisuals);
     connect(controller, &LaserController::operationStarted, this, [this](int laserIndex, int targetMa) {
-        // 目标值现在由控制核心按定时器缓慢推进，开发者页同步显示“正在调节”的限制状态。
+        // 目标值现在由控制核心按定时器缓慢推进，开发者页同步显示“正在调节"的限制状态。
         ui->receiveEdit->appendPlainText(QString("[RAMP] L%1 开始调节到 %2 mA").arg(laserIndex).arg(targetMa));
         updateAllLaserVisuals();
     });
@@ -212,7 +212,7 @@ void Widget::setLaser2Mode(bool coarse)
 
 void Widget::applyDeveloperRuntimeParams(const LaserController::DeveloperRuntimeParams &params)
 {
-    // TRY 前段直接使用 StartupL1/StartupL2，和普通操作员按钮启动曲线保持同源。
+    // L1 三段式曲线参数。
     tryL1HighCurrent = params.startupL1HighMa;
     tryL1MiddleCurrent = params.startupL1MiddleMa;
     tryPhase1TimeSec = params.startupL1Phase1TimeSec;
@@ -220,16 +220,10 @@ void Widget::applyDeveloperRuntimeParams(const LaserController::DeveloperRuntime
     tryPhase3TimeSec = params.startupL1Phase3TimeSec;
     tryStepSize = params.startupL1StepMa;
     tryFinalCurrent = params.operatorL1FinalMa;
-    tryL2HighCurrent = params.startupL2HighMa;
-    tryL2MiddleCurrent = params.startupL2MiddleMa;
-    tryL2FinalCurrent = params.operatorL2FinalMa;
-    tryL2Phase1TimeSec = params.startupL2Phase1TimeSec;
-    tryL2Phase2TimeSec = params.startupL2Phase2TimeSec;
-    tryL2Phase3TimeSec = params.startupL2Phase3TimeSec;
-    tryL2StartupStepSize = params.startupL2StepMa;
-    tryL2TargetMA = params.tryL2TargetMa;
-    tryL2StepSize = params.tryL2StepMa;
-    tryL2TimeSec = params.tryL2TimeSec;
+    // L2 单段缓升参数。
+    tryL2TargetMA = params.operatorL2FinalMa;
+    tryL2StepSize = params.startupL2StepMa;
+    tryL2TimeSec = params.startupL2Phase1TimeSec;
     tryL3TargetMA = params.tryL3TargetMa;
     tryL3StepSize = params.tryL3StepMa;
     tryL3TimeSec = params.tryL3TimeSec;
@@ -417,13 +411,13 @@ void Widget::updateLaserVisual(int laserIndex)
     }
 
     QString why;
-    if (thisBusy) {
+    if (tryRunning) {
+        // TRY 扫描期间 ramp 是内部执行细节，提示统一显示扫描状态，避免在 ramp 间隙和忙碌状态之间来回闪烁。
+        why = QString::fromUtf8(u8"TRY 扫描进行中，请等待扫描完成");
+    } else if (thisBusy) {
         why = QString::fromUtf8(u8"正在缓升/缓降，请等待完成");
     } else if (anyBusy) {
         why = QString::fromUtf8(u8"其它通道正在缓升/缓降，请等待完成");
-    } else if (tryRunning) {
-        // TRY 正在自动扫描时，开发者手动控件保持锁定，防止人工命令插入扫描流程。
-        why = QString::fromUtf8(u8"TRY 扫描进行中，请等待扫描完成");
     } else if (!canUp && !canDown) {
         why = adjustBlockReason(laserIndex, +1);
     } else if (!canUp) {
@@ -663,7 +657,7 @@ void Widget::on_laser1ParamsButton_clicked()
     form->addRow(QString::fromUtf8(u8"TRY 最终电流"), tryFinalMa);
 
     QDialogButtonBox *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    // 参数弹窗的确认动作会写入配置文件，用“保存”比默认 OK 更明确。
+    // 参数弹窗的确认动作会写入配置文件，用“保存"比默认 OK 更明确。
     if (QPushButton *saveButton = btnBox->button(QDialogButtonBox::Ok)) saveButton->setText(QString::fromUtf8(u8"保存"));
     form->addRow(btnBox);
     connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -703,66 +697,23 @@ void Widget::on_laser2ParamsButton_clicked()
     dlg.setWindowTitle(QString::fromUtf8(u8"L2 参数设置"));
     QFormLayout *form = new QFormLayout(&dlg);
 
-    QSpinBox *highMa = new QSpinBox(&dlg);
-    highMa->setRange(controller->laserMinMa(2), controller->laserMaxMa(2));
-    highMa->setValue(params.startupL2HighMa);
-    highMa->setSuffix(QString::fromUtf8(u8" mA"));
-    form->addRow(QString::fromUtf8(u8"启动高点电流"), highMa);
-
-    QSpinBox *middleMa = new QSpinBox(&dlg);
-    middleMa->setRange(controller->laserMinMa(2), controller->laserMaxMa(2));
-    middleMa->setValue(params.startupL2MiddleMa);
-    middleMa->setSuffix(QString::fromUtf8(u8" mA"));
-    form->addRow(QString::fromUtf8(u8"启动中间电流"), middleMa);
-
     QSpinBox *finalMa = new QSpinBox(&dlg);
     finalMa->setRange(controller->l2EnableL3Ma(), controller->laserMaxMa(2));
     finalMa->setValue(params.operatorL2FinalMa);
     finalMa->setSuffix(QString::fromUtf8(u8" mA"));
     form->addRow(QString::fromUtf8(u8"普通页面最终工作电流"), finalMa);
 
-    QSpinBox *phase1Time = new QSpinBox(&dlg);
-    phase1Time->setRange(1, 9999);
-    phase1Time->setValue(params.startupL2Phase1TimeSec);
-    phase1Time->setSuffix(QString::fromUtf8(u8" 秒"));
-    form->addRow(QString::fromUtf8(u8"启动阶段1时间"), phase1Time);
-
-    QSpinBox *phase2Time = new QSpinBox(&dlg);
-    phase2Time->setRange(1, 9999);
-    phase2Time->setValue(params.startupL2Phase2TimeSec);
-    phase2Time->setSuffix(QString::fromUtf8(u8" 秒"));
-    form->addRow(QString::fromUtf8(u8"启动阶段2时间"), phase2Time);
-
-    QSpinBox *phase3Time = new QSpinBox(&dlg);
-    phase3Time->setRange(1, 9999);
-    phase3Time->setValue(params.startupL2Phase3TimeSec);
-    phase3Time->setSuffix(QString::fromUtf8(u8" 秒"));
-    form->addRow(QString::fromUtf8(u8"启动阶段3时间"), phase3Time);
+    QSpinBox *rampTime = new QSpinBox(&dlg);
+    rampTime->setRange(1, 9999);
+    rampTime->setValue(params.startupL2Phase1TimeSec);
+    rampTime->setSuffix(QString::fromUtf8(u8" 秒"));
+    form->addRow(QString::fromUtf8(u8"缓升时长"), rampTime);
 
     QComboBox *startupStepMa = new QComboBox(&dlg);
-    // L2 启动步长只允许 1 mA 或 10 mA，TRY 额外扫描步长在下面单独设置。
     setupDeveloperStepCombo(startupStepMa, params.startupL2StepMa);
     form->addRow(QString::fromUtf8(u8"启动步长"), startupStepMa);
 
-    QSpinBox *targetMa = new QSpinBox(&dlg);
-    targetMa->setRange(controller->laserMinMa(2), controller->laserMaxMa(2));
-    targetMa->setValue(params.tryL2TargetMa);
-    targetMa->setSuffix(QString::fromUtf8(u8" mA"));
-    form->addRow(QString::fromUtf8(u8"TRY 目标电流"), targetMa);
-
-    QComboBox *stepMa = new QComboBox(&dlg);
-    // L2 TRY 步长只允许选择 STM32 已定义的细调 1 mA 或粗调 10 mA。
-    setupDeveloperStepCombo(stepMa, params.tryL2StepMa);
-    form->addRow(QString::fromUtf8(u8"TRY 步长"), stepMa);
-
-    QSpinBox *timeSec = new QSpinBox(&dlg);
-    timeSec->setRange(1, 9999);
-    timeSec->setValue(params.tryL2TimeSec);
-    timeSec->setSuffix(QString::fromUtf8(u8" 秒"));
-    form->addRow(QString::fromUtf8(u8"TRY 时间"), timeSec);
-
     QDialogButtonBox *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    // 参数弹窗的确认动作会写入配置文件，用“保存”比默认 OK 更明确。
     if (QPushButton *saveButton = btnBox->button(QDialogButtonBox::Ok)) saveButton->setText(QString::fromUtf8(u8"保存"));
     form->addRow(btnBox);
     connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -772,15 +723,12 @@ void Widget::on_laser2ParamsButton_clicked()
     }
 
     params.operatorL2FinalMa = finalMa->value();
-    params.startupL2HighMa = highMa->value();
-    params.startupL2MiddleMa = middleMa->value();
-    params.startupL2Phase1TimeSec = phase1Time->value();
-    params.startupL2Phase2TimeSec = phase2Time->value();
-    params.startupL2Phase3TimeSec = phase3Time->value();
+    params.startupL2Phase1TimeSec = rampTime->value();
     params.startupL2StepMa = developerStepFromCombo(startupStepMa);
-    params.tryL2TargetMa = targetMa->value();
-    params.tryL2StepMa = developerStepFromCombo(stepMa);
-    params.tryL2TimeSec = timeSec->value();
+    // L2 普通页面和开发者 TRY 共用同一套 StartupL2 参数，避免目标/步长/时间出现两套配置。
+    params.tryL2TargetMa = params.operatorL2FinalMa;
+    params.tryL2StepMa = params.startupL2StepMa;
+    params.tryL2TimeSec = params.startupL2Phase1TimeSec;
     saveLaserParamsFromDialog(2, params);
 }
 
@@ -830,7 +778,7 @@ void Widget::on_laser3ParamsButton_clicked()
     form->addRow(QString::fromUtf8(u8"TRY 时间"), timeSec);
 
     QDialogButtonBox *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
-    // 参数弹窗的确认动作会写入配置文件，用“保存”比默认 OK 更明确。
+    // 参数弹窗的确认动作会写入配置文件，用"保存"比默认 OK 更明确。
     if (QPushButton *saveButton = btnBox->button(QDialogButtonBox::Ok)) saveButton->setText(QString::fromUtf8(u8"保存"));
     form->addRow(btnBox);
     connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
@@ -898,21 +846,24 @@ void Widget::on_tryButton_clicked()
     form->addRow("L1 最终电流:", finalCurrent);
 
     QSpinBox *l2Target = new QSpinBox(&dlg);
-    l2Target->setRange(tryL2FinalCurrent, controller->laserMaxMa(2));
+    l2Target->setRange(tryL2TargetMA, tryL2TargetMA);
     l2Target->setValue(tryL2TargetMA);
+    l2Target->setEnabled(false);
     l2Target->setSuffix(" mA");
-    form->addRow("L2 终点 (0→):", l2Target);
+    form->addRow("L2 终点 (来自 L2 参数):", l2Target);
 
     QComboBox *l2Step = new QComboBox(&dlg);
-    // TRY 扫描中的 L2 步长同样只能对应 1 mA 细调或 10 mA 粗调。
+    // L2 的 TRY 段和普通预放启动共用 StartupL2，TRY 弹窗只显示来源，不再独立修改。
     setupDeveloperStepCombo(l2Step, tryL2StepSize);
-    form->addRow("L2 步长:", l2Step);
+    l2Step->setEnabled(false);
+    form->addRow("L2 步长 (来自 L2 参数):", l2Step);
 
     QSpinBox *l2Time = new QSpinBox(&dlg);
-    l2Time->setRange(1, 9999);
+    l2Time->setRange(tryL2TimeSec, tryL2TimeSec);
     l2Time->setValue(tryL2TimeSec);
+    l2Time->setEnabled(false);
     l2Time->setSuffix(" 秒");
-    form->addRow("L2 扫描时长:", l2Time);
+    form->addRow("L2 扫描时长 (来自 L2 参数):", l2Time);
 
     QSpinBox *l3Target = new QSpinBox(&dlg);
     l3Target->setRange(800, 10000);
@@ -949,9 +900,7 @@ void Widget::on_tryButton_clicked()
     tryPhase3TimeSec = phase3Time->value();
     tryStepSize = developerStepFromCombo(stepSize);
     tryFinalCurrent = finalCurrent->value();
-    tryL2TargetMA = l2Target->value();
-    tryL2StepSize = developerStepFromCombo(l2Step);
-    tryL2TimeSec = l2Time->value();
+    // L2 的 TRY 参数由 StartupL2 统一提供，TRY 弹窗不再写入独立的 L2 值。
     // L3 目标和步长都按固定 100 mA 对齐，避免界面参数和 '8'/'9' 指令含义不一致。
     tryL3TargetMA = controller->laserMinMa(3)
             + ((l3Target->value() - controller->laserMinMa(3) + l3FixedStep / 2) / l3FixedStep) * l3FixedStep;
@@ -1047,110 +996,24 @@ void Widget::tryStep()
     case TryPhase3:
         target = tryFinalCurrent; direction = -1;
         if (tryCurrent <= target) {
-            // L1 启动曲线完成后，L2 不再直接扫描到目标，而是先复用 StartupL2 三段式启动曲线。
+            // L1 完成，L2 单段缓升到目标电流。
+            tryState = TryPhaseL2;
             tryL2Current = controller->currentLaserMa(2);
-            if (tryL2Current < tryL2HighCurrent) {
-                tryState = TryPhaseL2Start1;
-                tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2HighCurrent, tryL2StartupStepSize, tryL2Phase1TimeSec));
-                ui->receiveEdit->appendPlainText(QString("[TRY] L1 完成，进入 L2 启动阶段1: %1 -> %2 mA")
-                    .arg(tryL2Current).arg(tryL2HighCurrent));
-            } else if (tryL2Current > tryL2MiddleCurrent) {
-                tryState = TryPhaseL2Start2;
-                tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2MiddleCurrent, tryL2StartupStepSize, tryL2Phase2TimeSec));
-                ui->receiveEdit->appendPlainText(QString("[TRY] L1 完成，进入 L2 启动阶段2: %1 -> %2 mA")
-                    .arg(tryL2Current).arg(tryL2MiddleCurrent));
-            } else {
-                tryState = TryPhaseL2Start3;
-                tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2FinalCurrent, tryL2StartupStepSize, tryL2Phase3TimeSec));
-                ui->receiveEdit->appendPlainText(QString("[TRY] L1 完成，进入 L2 启动阶段3: %1 -> %2 mA")
-                    .arg(tryL2Current).arg(tryL2FinalCurrent));
-            }
+            int intervalMs = tryIntervalForSegment(tryL2Current, tryL2TargetMA, tryL2StepSize, tryL2TimeSec);
+            tryTimer->setInterval(intervalMs);
+            ui->receiveEdit->appendPlainText(QString("[TRY] L1 完成，进入 L2 缓升: %1 → %2 mA (步长 %3, 时长 %4s)")
+                .arg(tryL2Current).arg(tryL2TargetMA).arg(tryL2StepSize).arg(tryL2TimeSec));
             return;
         }
         break;
-    case TryPhaseL2Start1: {
-        if (!canAdjustLaser(2, +1)) {
-            tryTimer->stop();
-            tryState = TryIdle;
-            ui->tryButton->setText("全段扫描 (TRY)");
-            ui->tryButton->setStyleSheet("QPushButton { background-color: #2196F3; color: white; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #CC5500; color: white; }");
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 启动阶段1中止：%1").arg(adjustBlockReason(2, +1)));
-            updateAllLaserVisuals();
-            return;
-        }
-        if (tryL2Current >= tryL2HighCurrent) {
-            tryState = TryPhaseL2Start2;
-            tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2MiddleCurrent, tryL2StartupStepSize, tryL2Phase2TimeSec));
-            ui->receiveEdit->appendPlainText(QString("[TRY] 进入 L2 启动阶段2: %1 -> %2 mA")
-                .arg(tryL2Current).arg(tryL2MiddleCurrent));
-            return;
-        }
-        if (!controller->setLaserTarget(2, qMin(tryL2Current + tryL2StartupStepSize, tryL2HighCurrent), true)) return;
-        updateAllLaserVisuals();
-        return;
-    }
-    case TryPhaseL2Start2: {
-        if (!canAdjustLaser(2, -1)) {
-            tryTimer->stop();
-            tryState = TryIdle;
-            ui->tryButton->setText("全段扫描 (TRY)");
-            ui->tryButton->setStyleSheet("QPushButton { background-color: #2196F3; color: white; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #CC5500; color: white; }");
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 启动阶段2中止：%1").arg(adjustBlockReason(2, -1)));
-            updateAllLaserVisuals();
-            return;
-        }
-        if (tryL2Current <= tryL2MiddleCurrent) {
-            tryState = TryPhaseL2Start3;
-            tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2FinalCurrent, tryL2StartupStepSize, tryL2Phase3TimeSec));
-            ui->receiveEdit->appendPlainText(QString("[TRY] 进入 L2 启动阶段3: %1 -> %2 mA")
-                .arg(tryL2Current).arg(tryL2FinalCurrent));
-            return;
-        }
-        if (!controller->setLaserTarget(2, qMax(tryL2Current - tryL2StartupStepSize, tryL2MiddleCurrent), true)) return;
-        updateAllLaserVisuals();
-        return;
-    }
-    case TryPhaseL2Start3: {
-        const int l2FinalDirection = (tryL2FinalCurrent > tryL2Current) ? +1 : (tryL2FinalCurrent < tryL2Current ? -1 : 0);
-        if (l2FinalDirection == 0) {
-            tryState = TryPhaseL2;
-            tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2TargetMA, tryL2StepSize, tryL2TimeSec));
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 启动完成，进入 L2 额外扫描: %1 -> %2 mA")
-                .arg(tryL2Current).arg(tryL2TargetMA));
-            return;
-        }
-        if (!canAdjustLaser(2, l2FinalDirection)) {
-            tryTimer->stop();
-            tryState = TryIdle;
-            ui->tryButton->setText("全段扫描 (TRY)");
-            ui->tryButton->setStyleSheet("QPushButton { background-color: #2196F3; color: white; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #CC5500; color: white; }");
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 启动阶段3中止：%1").arg(adjustBlockReason(2, l2FinalDirection)));
-            updateAllLaserVisuals();
-            return;
-        }
-        if ((l2FinalDirection > 0 && tryL2Current >= tryL2FinalCurrent)
-            || (l2FinalDirection < 0 && tryL2Current <= tryL2FinalCurrent)) {
-            tryState = TryPhaseL2;
-            tryTimer->setInterval(tryIntervalForSegment(tryL2Current, tryL2TargetMA, tryL2StepSize, tryL2TimeSec));
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 启动完成，进入 L2 额外扫描: %1 -> %2 mA")
-                .arg(tryL2Current).arg(tryL2TargetMA));
-            return;
-        }
-        const int newVal = (l2FinalDirection > 0)
-                ? qMin(tryL2Current + tryL2StartupStepSize, tryL2FinalCurrent)
-                : qMax(tryL2Current - tryL2StartupStepSize, tryL2FinalCurrent);
-        if (!controller->setLaserTarget(2, newVal, true)) return;
-        updateAllLaserVisuals();
-        return;
-    }
     case TryPhaseL2: {
-        // L2 扫描只做升高动作，必须满足 L1 达标且 L3 已处于最低/关闭态。
+        // L2 单段缓升到目标电流。
         if (!canAdjustLaser(2, +1)) {
             tryTimer->stop();
             tryState = TryIdle;
             ui->tryButton->setText("全段扫描 (TRY)");
             ui->tryButton->setStyleSheet("QPushButton { background-color: #2196F3; color: white; font-weight: bold; font-size: 14px; } QPushButton:hover { background-color: #CC5500; color: white; }");
-            ui->receiveEdit->appendPlainText(QString("[TRY] L2 扫描中止：%1").arg(adjustBlockReason(2, +1)));
+            ui->receiveEdit->appendPlainText(QString("[TRY] L2 缓升中止：%1").arg(adjustBlockReason(2, +1)));
             updateAllLaserVisuals();
             return;
         }
@@ -1174,14 +1037,12 @@ void Widget::tryStep()
                 .arg(tryL3Current).arg(tryL3TargetMA).arg(tryL3StepSize).arg(tryL3TimeSec));
             return;
         }
-        // 走 L2 一步：TRY 也通过控制核心设置目标值，不直接发送串口命令。
         int newVal = qMin(tryL2Current + tryL2StepSize, tryL2TargetMA);
         if (!controller->setLaserTarget(2, newVal, true)) return;
         tryL2Current = newVal;
         ui->laser2spinbox->blockSignals(true);
         ui->laser2spinbox->setValue(controller->currentLaserMa(2));
         ui->laser2spinbox->blockSignals(false);
-        // TRY 自动推进 L2 后，L3 的上调许可可能发生变化，统一刷新三路 UI。
         updateAllLaserVisuals();
         return;
     }

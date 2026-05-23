@@ -60,12 +60,12 @@ L1/L2 的可选步长只能是 `1 mA` 或 `10 mA`。L3 由硬件协议固定为 
 
 ## 4. 统一启动曲线
 
-L1 和 L2 的启动曲线现在统一放在配置文件中：
+L1 和 L2 的启动曲线配置：
 
-- `[StartupL1]`：L1 普通启动和开发者 TRY 的 L1 前段共用。
-- `[StartupL2]`：L2 普通启动和开发者 TRY 的 L2 前段共用。
+- `[StartupL1]`：L1 普通启动和开发者 TRY 的 L1 前段共用（三段式曲线）。
+- `[StartupL2]`：L2 单段缓升，从 0 直接升至目标电流。
 
-每路启动曲线都包含：
+L1 三段式曲线参数：
 
 | 参数 | 含义 |
 |---|---|
@@ -77,32 +77,77 @@ L1 和 L2 的启动曲线现在统一放在配置文件中：
 | `FallFinalDurationMs` | 中间点到最终工作电流的目标时长 |
 | `StepMa` | 启动步长，只能是 1 或 10 |
 
+L2 单段缓升参数：
+
+| 参数 | 含义 |
+|---|---|
+| `FinalMa` | 目标工作电流 |
+| `RiseDurationMs` | 缓升总时长 |
+| `StepMa` | 启动步长，只能是 1 或 10 |
+
 默认值：
 
 | 通道 | 曲线 | 步长 |
 |---|---|---:|
 | L1 | `0 -> 850 -> 200 -> 98 mA` | 1 mA |
-| L2 | `0 -> 850 -> 200 -> 90 mA` | 10 mA |
+| L2 | `0 -> 460 mA`（单段） | 10 mA |
 
-普通操作员页面点击 L1 或 L2 开启时，会走这套曲线。开发者 TRY 也会先走同一套曲线，然后再进入后续扫描。
+普通操作员页面点击 L1 或 L2 开启时，L1 走三段曲线，L2 走单段缓升。开发者 TRY 的 L1 前段走同一套 L1 曲线，L2 也直接复用 `[StartupL2]` 的目标、步长和时长，不再维护第二套 L2 TRY 参数。
 
 ## 5. 开发者 TRY
+
+### 5.1 状态机
+
+| 阶段 | 动作 | 方向 | 终点 | 下一步 |
+|---|---|---|---|---|
+| TryPhase1 | L1 升 | ↑ | 850mA | → TryPhase2 |
+| TryPhase2 | L1 降 | ↓ | 200mA | → TryPhase3 |
+| TryPhase3 | L1 降 | ↓ | 98mA | → TryPhaseL2 |
+| TryPhaseL2 | L2 升 | ↑ | 460mA | → TryPhaseL3 |
+| TryPhaseL3 | L3 升 | ↑ | 5000mA | → Done |
+
+### 5.2 扫描流程
+
+L1 启动曲线完成 (98mA)
+  │
+  ▼
+┌─────────────────────────────────────┐
+│ L2 单段缓升 (TryPhaseL2)             │
+│  当前值 → operatorL2FinalMa (460mA)  │
+│  步长 10mA，时长 30s                 │
+│  参数来源：[StartupL2]               │
+│  TRY 弹窗中 L2 参数只读，不可独立修改  │
+└─────────────────────────────────────┘
+  │
+  ▼
+L3 扫描 (TryPhaseL3)
+  800 → 5000 mA
+
 
 TRY 执行顺序：
 
 ```text
 L1 StartupL1 三段启动
-        -> L2 StartupL2 三段启动
-        -> L2 额外扫描到 DeveloperTry/L2TargetMa
+        -> L2 单段缓升到 StartupL2/FinalMa
         -> L3 扫描到 DeveloperTry/L3TargetMa
 ```
 
-注意：
+### 5.3 L2 参数统一化
 
-- `DeveloperTry/L2TargetMa` 是 L2 启动完成后的额外扫描目标，不是普通操作员页面的 L2 最终工作电流。
-- 普通操作员的 L2 最终工作电流来自 `StartupL2/FinalMa`。
+L2 在普通页面开启和 TRY 扫描中**共用同一套参数**：
+
+- **参数唯一来源**：`[StartupL2]` 配置段（`FinalMa`、`RiseDurationMs`、`StepMa`）
+- **L2 参数弹窗**（`on_laser2ParamsButton_clicked`）：只保留 3 个字段 —— 最终工作电流、缓升时长、启动步长。保存时自动将 TRY 参数同步为相同值。
+- **TRY 扫描弹窗**（`on_tryButton_clicked`）：L2 目标/步长/时间显示为只读，标注"来自 L2 参数"，不可独立修改。
+- **`loadConfig()`**：启动时强制 `tryL2TargetMa = startupL2FinalMa`，避免旧 ini 残留的 `DeveloperTry/L2*` 值造成分叉。
+- **`saveDeveloperLaserParameters()`**：`DeveloperTry/L2*` 仍写入，但数值从 `StartupL2` 同步，仅作为兼容镜像。
+
+### 5.4 注意事项
+
+- L2 在 TRY 中只有一段缓升，不使用三段式曲线。
 - TRY 每一步仍然调用 `LaserController::setLaserTarget()`，不会绕过联锁。
-- **TRT 扫描期间，开发者页面的 +/- 按钮和 SpinBox 会被自动锁定**，避免手动命令插入自动扫描流程。锁定会持续到扫描完成或手动停止，不会在每段 ramp 间隙短暂解锁，杜绝按钮闪烁。
+- **TRY 扫描期间，开发者页面的 +/- 按钮和 SpinBox 会被自动锁定**，避免手动命令插入自动扫描流程。锁定会持续到扫描完成或手动停止，不会在每段 ramp 间隙短暂解锁，杜绝按钮闪烁。
+- TRY 的 L1 阶段复用 `[StartupL1]` 的三段曲线参数；L3 的扫描目标/步长/时长仍在 TRY 弹窗中独立设置，保存在 `[DeveloperTry]`。
 
 ## 6. 普通操作员页面
 
@@ -119,7 +164,7 @@ L1 StartupL1 三段启动
 |---|---|---|
 | 1 | 在普通页面选择串口并点击 `连接` | 未连接时所有操作锁住 |
 | 2 | 点击 `L1 开/关（种子）` | L1 按 `StartupL1` 三段启动，完成后按钮才显示已开启 |
-| 3 | 点击 `预放开/关` | L2 按 `StartupL2` 三段启动，完成后按钮才显示已开启 |
+| 3 | 点击 `预放开/关` | L2 按 `StartupL2` 单段缓升，完成后按钮才显示已开启 |
 | 4 | 调整功率百分比 | 2%~100% 映射到 L3 800~5000 mA，并按 100 mA 对齐 |
 
 关机顺序：
@@ -153,12 +198,12 @@ L1 StartupL1 三段启动
 | `[Interlock]` | L1/L2 启动阈值和安全关闭态 |
 | `[Range]` | L1/L2/L3 设定值上限 |
 | `[StartupL1]` | L1 普通启动和 TRY 前段 |
-| `[StartupL2]` | L2 普通启动和 TRY 前段 |
+| `[StartupL2]` | L2 普通启动和 TRY L2 段，唯一 L2 启动/扫描参数源 |
 | `[Step]` | 与 STM32 指令对应的固定步长 |
 | `[L3OperatorPower]` | 普通页面功率百分比到 L3 mA 的映射 |
 | `[Ramp]` | 默认缓升间隔、最小间隔、手动发送间隔 |
 | `[Temperature]` | 临时温度 ready 旁路开关，默认关闭 |
-| `[DeveloperTry]` | TRY 后续扫描目标和时长 |
+| `[DeveloperTry]` | TRY L3 扫描目标和时长；L2 的 DeveloperTry 键仅作兼容镜像，实际以 `[StartupL2]` 为准 |
 
 开发者页面每路都有独立参数按钮。保存时会写回对应配置段，并生成 `laser_config.ini.bak`。
 

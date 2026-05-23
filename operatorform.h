@@ -46,6 +46,7 @@ private:
     bool l1Busy = false;
     bool l2Busy = false;
     bool l3Busy = false;
+    bool operatorPowerPercentRequestActive = false;
 };
 
 #endif // OPERATORFORM_H

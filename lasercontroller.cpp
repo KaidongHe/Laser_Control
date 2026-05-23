@@ -11,6 +11,8 @@
 #include <QtGlobal>
 
 namespace {
+constexpr int kMinGlobalSendIntervalMs = 67; // 15Hz 硬上限：1000 / 15 ≈ 66.7ms，取 67ms 留一点余量
+
 int normalizeStepChoice(int stepMa)
 {
     return (qAbs(stepMa - 1) <= qAbs(stepMa - 10)) ? 1 : 10;
@@ -81,7 +83,7 @@ void LaserController::saveDefaultConfigIfMissing() const
     s.setValue(QStringLiteral("Range/Laser12MaxMa"), defaults.laser12MaxMa);
     s.setValue(QStringLiteral("Range/Laser3MaxMa"), defaults.laser3MaxMa);
 
-    // L1/L2 启动曲线独立保存；普通操作员启动和开发者 TRY 前段共用这两组参数。
+    // L1 启动曲线（三段式）；L2 启动曲线（单段缓升）。普通操作员启动和开发者 TRY 前段共用。
     s.setValue(QStringLiteral("StartupL1/HighMa"), defaults.startupL1HighMa);
     s.setValue(QStringLiteral("StartupL1/MiddleMa"), defaults.startupL1MiddleMa);
     s.setValue(QStringLiteral("StartupL1/FinalMa"), defaults.startupL1FinalMa);
@@ -90,12 +92,8 @@ void LaserController::saveDefaultConfigIfMissing() const
     s.setValue(QStringLiteral("StartupL1/FallFinalDurationMs"), defaults.startupL1FallFinalDurationMs);
     s.setValue(QStringLiteral("StartupL1/StepMa"), defaults.startupL1StepMa);
 
-    s.setValue(QStringLiteral("StartupL2/HighMa"), defaults.startupL2HighMa);
-    s.setValue(QStringLiteral("StartupL2/MiddleMa"), defaults.startupL2MiddleMa);
     s.setValue(QStringLiteral("StartupL2/FinalMa"), defaults.startupL2FinalMa);
     s.setValue(QStringLiteral("StartupL2/RiseDurationMs"), defaults.startupL2RiseDurationMs);
-    s.setValue(QStringLiteral("StartupL2/FallMiddleDurationMs"), defaults.startupL2FallMiddleDurationMs);
-    s.setValue(QStringLiteral("StartupL2/FallFinalDurationMs"), defaults.startupL2FallFinalDurationMs);
     s.setValue(QStringLiteral("StartupL2/StepMa"), defaults.startupL2StepMa);
 
     // 兼容旧版本配置键：新代码不再以 OperatorSoftStart 作为主配置源。
@@ -175,6 +173,8 @@ void LaserController::loadConfig()
     cfg.startupL1StepMa = s.value(QStringLiteral("StartupL1/StepMa"),
                                   s.value(QStringLiteral("DeveloperTry/L1StepMa"), defaults.startupL1StepMa)).toInt();
 
+    // L2 曲线已简化为单段缓升：只使用 FinalMa、RiseDurationMs、StepMa。
+    // HighMa/MiddleMa/Fall* 旧键仍读取用于兼容旧 ini，但 L2 控制路径不再引用。
     cfg.startupL2HighMa = s.value(QStringLiteral("StartupL2/HighMa"),
                                   s.value(QStringLiteral("OperatorSoftStart/HighMa"), defaults.startupL2HighMa)).toInt();
     cfg.startupL2MiddleMa = s.value(QStringLiteral("StartupL2/MiddleMa"),
@@ -257,9 +257,10 @@ void LaserController::loadConfig()
     }
     cfg.l3MinMa = qBound(cfg.l3SafeOffMa, cfg.l3MinMa, cfg.laser3MaxMa - 1);
     cfg.l3MaxMa = qBound(cfg.l3MinMa + 1, cfg.l3MaxMa, cfg.laser3MaxMa);
-    cfg.defaultRampIntervalMs = qMax(1, cfg.defaultRampIntervalMs);
-    cfg.minRampIntervalMs = qMax(1, cfg.minRampIntervalMs);
-    cfg.minManualSendIntervalMs = qMax(0, cfg.minManualSendIntervalMs);
+    cfg.defaultRampIntervalMs = qMax(kMinGlobalSendIntervalMs, cfg.defaultRampIntervalMs);
+    // 配置文件不能把发送节奏降到 15Hz 以上；全局发送计时器仍作为最后兜底。
+    cfg.minRampIntervalMs = qMax(kMinGlobalSendIntervalMs, cfg.minRampIntervalMs);
+    cfg.minManualSendIntervalMs = qMax(kMinGlobalSendIntervalMs, cfg.minManualSendIntervalMs);
 
     // 开发者 TRY 参数也从配置读取，但仍按当前量程做夹紧，避免旧 ini 或手动编辑产生越界扫描目标。
     // L1 TRY 前段已经并入 StartupL1，这里只保留镜像值，避免旧调用读到独立参数。
@@ -268,9 +269,10 @@ void LaserController::loadConfig()
     cfg.tryL1Phase3TimeSec = cfg.startupL1FallFinalDurationMs / 1000;
     cfg.tryL1StepMa = cfg.startupL1StepMa;
     cfg.tryL1FinalMa = cfg.startupL1FinalMa;
-    cfg.tryL2TargetMa = qBound(cfg.startupL2FinalMa, cfg.tryL2TargetMa, cfg.laser12MaxMa);
-    cfg.tryL2StepMa = normalizeStepChoice(cfg.tryL2StepMa);
-    cfg.tryL2TimeSec = qMax(1, cfg.tryL2TimeSec);
+    // L2 普通预放启动和开发者 TRY 统一使用 StartupL2；旧 DeveloperTry/L2* 只保留为兼容镜像，不再作为独立运行参数。
+    cfg.tryL2TargetMa = cfg.startupL2FinalMa;
+    cfg.tryL2StepMa = cfg.startupL2StepMa;
+    cfg.tryL2TimeSec = cfg.startupL2RiseDurationMs / 1000;
     cfg.tryL3TargetMa = qBound(cfg.l3SafeOffMa, cfg.tryL3TargetMa, cfg.laser3MaxMa);
     // L3 没有 1/10 mA 指令，TRY 步长固定跟随硬件单步 100 mA。
     cfg.tryL3StepMa = cfg.l3StepMa;
@@ -1032,11 +1034,7 @@ LaserController::DeveloperRuntimeParams LaserController::developerRuntimeParams(
     params.startupL1Phase2TimeSec = cfg.startupL1FallMiddleDurationMs / 1000;
     params.startupL1Phase3TimeSec = cfg.startupL1FallFinalDurationMs / 1000;
     params.startupL1StepMa = cfg.startupL1StepMa;
-    params.startupL2HighMa = cfg.startupL2HighMa;
-    params.startupL2MiddleMa = cfg.startupL2MiddleMa;
-    params.startupL2Phase1TimeSec = cfg.startupL2RiseDurationMs / 1000;
-    params.startupL2Phase2TimeSec = cfg.startupL2FallMiddleDurationMs / 1000;
-    params.startupL2Phase3TimeSec = cfg.startupL2FallFinalDurationMs / 1000;
+    params.startupL2Phase1TimeSec = cfg.startupL2RiseDurationMs / 1000; // L2 单段缓升总时长
     params.startupL2StepMa = cfg.startupL2StepMa;
     // 旧的 L1 TRY 字段镜像 StartupL1，保证尚未改完的界面变量也不会读到另一套参数。
     params.tryL1Phase1TimeSec = params.startupL1Phase1TimeSec;
@@ -1044,9 +1042,10 @@ LaserController::DeveloperRuntimeParams LaserController::developerRuntimeParams(
     params.tryL1Phase3TimeSec = params.startupL1Phase3TimeSec;
     params.tryL1StepMa = params.startupL1StepMa;
     params.tryL1FinalMa = params.operatorL1FinalMa;
-    params.tryL2TargetMa = cfg.tryL2TargetMa;
-    params.tryL2StepMa = cfg.tryL2StepMa;
-    params.tryL2TimeSec = cfg.tryL2TimeSec;
+    // L2 TRY 字段镜像 StartupL2，避免界面或旧配置继续形成第二套 L2 参数。
+    params.tryL2TargetMa = params.operatorL2FinalMa;
+    params.tryL2StepMa = params.startupL2StepMa;
+    params.tryL2TimeSec = params.startupL2Phase1TimeSec;
     params.tryL3TargetMa = cfg.tryL3TargetMa;
     params.tryL3StepMa = cfg.tryL3StepMa;
     params.tryL3TimeSec = cfg.tryL3TimeSec;
@@ -1140,11 +1139,10 @@ bool LaserController::saveDeveloperLaserParameters(int laserIndex, const Develop
     const int alignedTryL3TargetMa = cfg.l3SafeOffMa
             + ((params.tryL3TargetMa - cfg.l3SafeOffMa + l3Step / 2) / l3Step) * l3Step;
     const int fixedTryL3StepMa = cfg.l3StepMa;
-    // L1/L2 TRY 步长只保存 1 mA 或 10 mA，开发者窗口不能写入任意步长。
+    // L1 TRY 步长只保存 1 mA 或 10 mA；L2 TRY 字段后面会镜像 StartupL2 步长。
     const int normalizedStartupL1StepMa = normalizeStepChoice(params.startupL1StepMa);
     const int normalizedStartupL2StepMa = normalizeStepChoice(params.startupL2StepMa);
     const int normalizedTryL1StepMa = normalizedStartupL1StepMa;
-    const int normalizedTryL2StepMa = normalizeStepChoice(params.tryL2StepMa);
 
     saveDefaultConfigIfMissing();
     const QString path = configFilePath();
@@ -1179,18 +1177,15 @@ bool LaserController::saveDeveloperLaserParameters(int laserIndex, const Develop
         s.setValue(QStringLiteral("DeveloperTry/L1StepMa"), normalizedTryL1StepMa);
         s.setValue(QStringLiteral("DeveloperTry/L1FinalMa"), params.operatorL1FinalMa);
     } else if (laserIndex == 2) {
-        // L2 同样先走 StartupL2 启动曲线，完成后 TRY 才继续扫描到 DeveloperTry/L2TargetMa。
-        s.setValue(QStringLiteral("StartupL2/HighMa"), qBound(0, params.startupL2HighMa, cfg.laser12MaxMa));
-        s.setValue(QStringLiteral("StartupL2/MiddleMa"), qBound(0, params.startupL2MiddleMa, cfg.laser12MaxMa));
+        // L2 单段缓升到目标电流，不再有三段式曲线。
         s.setValue(QStringLiteral("StartupL2/FinalMa"), params.operatorL2FinalMa);
         s.setValue(QStringLiteral("StartupL2/RiseDurationMs"), qMax(1, params.startupL2Phase1TimeSec) * 1000);
-        s.setValue(QStringLiteral("StartupL2/FallMiddleDurationMs"), qMax(1, params.startupL2Phase2TimeSec) * 1000);
-        s.setValue(QStringLiteral("StartupL2/FallFinalDurationMs"), qMax(1, params.startupL2Phase3TimeSec) * 1000);
         s.setValue(QStringLiteral("StartupL2/StepMa"), normalizedStartupL2StepMa);
         s.setValue(QStringLiteral("OperatorSoftStart/L2FinalMa"), params.operatorL2FinalMa);
-        s.setValue(QStringLiteral("DeveloperTry/L2TargetMa"), qBound(params.operatorL2FinalMa, params.tryL2TargetMa, cfg.laser12MaxMa));
-        s.setValue(QStringLiteral("DeveloperTry/L2StepMa"), normalizedTryL2StepMa);
-        s.setValue(QStringLiteral("DeveloperTry/L2TimeSec"), qMax(1, params.tryL2TimeSec));
+        // 旧 DeveloperTry/L2* 键只作为兼容镜像写回，真实运行统一读取 StartupL2。
+        s.setValue(QStringLiteral("DeveloperTry/L2TargetMa"), params.operatorL2FinalMa);
+        s.setValue(QStringLiteral("DeveloperTry/L2StepMa"), normalizedStartupL2StepMa);
+        s.setValue(QStringLiteral("DeveloperTry/L2TimeSec"), qMax(1, params.startupL2Phase1TimeSec));
     } else if (laserIndex == 3) {
         s.setValue(QStringLiteral("L3OperatorPower/MaxMa"), alignedL3MaxMa);
         s.setValue(QStringLiteral("DeveloperTry/L3TargetMa"), qBound(cfg.l3SafeOffMa, alignedTryL3TargetMa, cfg.laser3MaxMa));
@@ -1246,9 +1241,14 @@ bool LaserController::requestOperatorSwitch(int laserIndex, bool on, QString *re
     }
 
     bool ok = false;
-    if (on && (laserIndex == 1 || laserIndex == 2)) {
-        // 普通用户模式开启 L1/L2 时走三段式细调曲线，不再直接跳到 90 mA。
-        ok = startOperatorSoftOn(laserIndex);
+    if (on && laserIndex == 1) {
+        // L1 普通用户模式开启时走三段式细调曲线。
+        ok = startOperatorSoftOn(1);
+    } else if (on && laserIndex == 2) {
+        // L2 单段缓升到目标电流，步长和时长从配置文件读取。
+        ok = setLaserTarget(2, startupFinalMa(2),
+                            startupCoarseMode(2),
+                            startupRiseDurationMs(2));
     } else {
         // 关闭仍是单段缓降到 0 mA；这里使用细调，让按钮不会提前变灰。
         ok = setLaserTarget(laserIndex, target, false);
@@ -1324,7 +1324,12 @@ bool LaserController::sendLaserCommand(int laserIndex, char cmd)
         && lastSentTimers[laserIndex - 1].elapsed() < minSendIntervalMs) {
         return false;
     }
-    lastSentTimers[laserIndex - 1].restart();
+
+    // 全局硬限速覆盖手动、ramp、TRY 和跨通道发送，避免三路叠加后超过下位机可承受的 15Hz。
+    if (globalSendTimer.isValid()
+        && globalSendTimer.elapsed() < kMinGlobalSendIntervalMs) {
+        return false;
+    }
 
     QByteArray data(1, cmd);
     qint64 bytesWritten = serialPort->write(data);
@@ -1340,6 +1345,8 @@ bool LaserController::sendLaserCommand(int laserIndex, char cmd)
         return false;
     }
 
+    lastSentTimers[laserIndex - 1].restart();
+    globalSendTimer.restart();
     emit logMessage(QString::fromUtf8(u8"[SEND] Laser%1 -> %2").arg(laserIndex).arg(QChar(cmd)));
     updateLaserStatusFromSend(laserIndex);
     return true;

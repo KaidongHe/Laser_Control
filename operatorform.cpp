@@ -60,6 +60,8 @@ operatorForm::operatorForm(LaserController *sharedController, QWidget *parent) :
     ui->powerSpinBox->setButtonSymbols(QAbstractSpinBox::NoButtons);
     // 普通页面百分比范围来自配置文件，默认仍是 2%~100%。
     ui->powerSpinBox->setRange(controller->operatorPowerMinPercent(), controller->operatorPowerMaxPercent());
+    // 普通页面显示层保持 1% 连续调节；实际 L3 电流仍由控制核心按硬件步长折算和对齐。
+    ui->powerSpinBox->setSingleStep(1);
     // 关闭键盘实时跟踪：手动输入完成后再提交，点击 +/- 仍会立即提交。
     ui->powerSpinBox->setKeyboardTracking(false);
 
@@ -108,7 +110,11 @@ operatorForm::operatorForm(LaserController *sharedController, QWidget *parent) :
             if (!l2Busy) preReleaseEnabled = currentMa >= controller->l2FinalMa();
             updateToggleButton(ui->preReleaseButton, preReleaseEnabled, QString::fromUtf8(u8"预放开/关"), l2Busy);
         } else if (laserIndex == 3) {
-            syncPowerSpinBoxFromLaser3();
+            // 普通页面刚提交百分比时，界面保留用户选择的 1% 连续值；
+            // 否则 3% -> 800 mA 会立刻被反算回 2%，看起来像 +/- 没生效。
+            if (!operatorPowerPercentRequestActive) {
+                syncPowerSpinBoxFromLaser3();
+            }
         }
         updateOperatorLockState();
     });
@@ -137,7 +143,16 @@ operatorForm::operatorForm(LaserController *sharedController, QWidget *parent) :
             updateToggleButton(ui->preReleaseButton, preReleaseEnabled, QString::fromUtf8(u8"预放开/关"), l2Busy);
         } else if (laserIndex == 3) {
             l3Busy = false;
-            syncPowerSpinBoxFromLaser3();
+            if (!success) {
+                operatorPowerPercentRequestActive = false;
+                syncPowerSpinBoxFromLaser3();
+            } else if (operatorPowerPercentRequestActive) {
+                // 成功完成普通页面百分比请求后，不回写显示值；只结束保护标记。
+                // 之后若开发者页或控制核心再改变 L3，currentChanged 会重新同步。
+                operatorPowerPercentRequestActive = false;
+            } else {
+                syncPowerSpinBoxFromLaser3();
+            }
         }
         updateOperatorLockState();
     });
@@ -325,14 +340,20 @@ void operatorForm::applyPowerPercent()
 {
     QString reason;
     const int percent = ui->powerSpinBox->value();
+    const int targetMa = controller->operatorPowerPercentToMa(percent);
+    const bool willChangeL3 = targetMa != controller->currentLaserMa(3);
 
     // 普通页面只提交百分比请求，百分比到 L3 mA 的换算和顺序联锁都交给控制核心。
     if (!controller->requestOperatorPowerPercent(percent, &reason)) {
         QMessageBox::warning(this, QString::fromUtf8(u8"L3 功率设置被拒绝"),
                              reason.isEmpty() ? QString::fromUtf8(u8"请先按顺序开启 L1 和预放 L2。") : reason);
+        operatorPowerPercentRequestActive = false;
+        syncPowerSpinBoxFromLaser3();
+    } else {
+        // 请求成功时不立即回读 L3 电流。百分比显示允许 1% 连续变化，
+        // 内部实际电流由 operatorPowerPercentToMa() 按 100 mA 等硬件步长四舍五入。
+        operatorPowerPercentRequestActive = willChangeL3;
     }
-    // L3 实际按 100 mA 步进，提交后回读控制核心的当前值，显示最接近真实电流的百分比。
-    syncPowerSpinBoxFromLaser3();
     updateOperatorLockState();
 }
 

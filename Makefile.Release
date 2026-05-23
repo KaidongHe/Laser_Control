@@ -141,6 +141,8 @@ release\serial.exe: C:\APP\QT\5.14.2\msvc2017_64\lib\Qt5Widgets.lib C:\APP\QT\5.
 release\main.obj release\operatorform.obj release\lasercontroller.obj release\widget.obj release\laserchart.obj release\pillspinbox.obj release\moc_operatorform.obj release\moc_lasercontroller.obj release\moc_widget.obj release\moc_laserchart.obj release\moc_pillspinbox.obj
 $(LIBS)
 <<
+	if not exist C:\Users\Antis\Desktop\DAT\QT_laser\laser-control\serialhelper\laser_config.ini copy /Y C:\Users\Antis\Desktop\DAT\QT_laser\laser-control\serialhelper\laser_config.ini C:\Users\Antis\Desktop\DAT\QT_laser\laser-control\serialhelper\laser_config.ini
+	
 
 release\serial_resource.res: serial_resource.rc
 	rc /NOLOGO $(DEFINES) -fo release\serial_resource.res serial_resource.rc
@@ -461,15 +463,6 @@ release\moc_widget.cpp: widget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qfiledevice.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qvector2d.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qtouchdevice.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPort \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialport.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportglobal.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPortInfo \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportinfo.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QTextCodec \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qtextcodec.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QElapsedTimer \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qelapsedtimer.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QLabel \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qlabel.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qframe.h \
@@ -503,6 +496,11 @@ release\moc_widget.cpp: widget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qgridlayout.h \
 		lasercontroller.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QObject \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QElapsedTimer \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qelapsedtimer.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPort \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialport.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportglobal.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QStringList \
 		laserchart.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QVector \
@@ -1224,8 +1222,23 @@ release\operatorform.obj: operatorform.cpp operatorform.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qdesktopwidget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qguiapplication.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qinputmethod.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QFrame \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QComboBox \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qcombobox.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractitemdelegate.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qstyleoption.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractspinbox.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qvalidator.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qregularexpression.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qicon.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qslider.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractslider.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qstyle.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qtabbar.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qtabwidget.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qrubberband.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qframe.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qabstractitemmodel.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QFrame \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QGridLayout \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qgridlayout.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qlayout.h \
@@ -1237,7 +1250,6 @@ release\operatorform.obj: operatorform.cpp operatorform.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QPushButton \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qpushbutton.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractbutton.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qicon.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QSpacerItem \
 		pillspinbox.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QPoint \
@@ -1245,25 +1257,7 @@ release\operatorform.obj: operatorform.cpp operatorform.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QSize \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QSpinBox \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qspinbox.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractspinbox.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qvalidator.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qregularexpression.h \
 		widget.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPortInfo \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportinfo.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QTextCodec \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qtextcodec.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QComboBox \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qcombobox.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractitemdelegate.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qstyleoption.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qslider.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qabstractslider.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qstyle.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qtabbar.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qtabwidget.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qrubberband.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qabstractitemmodel.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QTimer \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qtimer.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qbasictimer.h \
@@ -1271,6 +1265,7 @@ release\operatorform.obj: operatorform.cpp operatorform.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QVector \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QPointF \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\QColor \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QDebug \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QGraphicsDropShadowEffect \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qgraphicseffect.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QInputDialog \
@@ -1486,15 +1481,6 @@ release\widget.obj: widget.cpp widget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qfiledevice.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qvector2d.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtGui\qtouchdevice.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPort \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialport.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportglobal.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPortInfo \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportinfo.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QTextCodec \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qtextcodec.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QElapsedTimer \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qelapsedtimer.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QLabel \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qlabel.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qframe.h \
@@ -1528,6 +1514,11 @@ release\widget.obj: widget.cpp widget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qgridlayout.h \
 		lasercontroller.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QObject \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QElapsedTimer \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\qelapsedtimer.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\QSerialPort \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialport.h \
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtSerialPort\qserialportglobal.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QStringList \
 		laserchart.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QVector \
@@ -1563,14 +1554,12 @@ release\widget.obj: widget.cpp widget.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QMessageBox \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qmessagebox.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qdialog.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QDebug \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QDialog \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QFormLayout \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qformlayout.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QLayout \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QDialogButtonBox \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qdialogbuttonbox.h \
-		C:\APP\QT\5.14.2\msvc2017_64\include\QtCore\QRegularExpression
+		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\qdialogbuttonbox.h
 
 release\laserchart.obj: laserchart.cpp laserchart.h \
 		C:\APP\QT\5.14.2\msvc2017_64\include\QtWidgets\QWidget \

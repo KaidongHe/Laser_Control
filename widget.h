@@ -91,9 +91,6 @@ private:
         TryPhase1,
         TryPhase2,
         TryPhase3,
-        TryPhaseL2Start1,
-        TryPhaseL2Start2,
-        TryPhaseL2Start3,
         TryPhaseL2,
         TryPhaseL3
     };
@@ -108,18 +105,10 @@ private:
     int tryL1HighCurrent = 850;
     int tryL1MiddleCurrent = 200;
     int tryFinalCurrent = 98;
-    // L2 启动曲线和普通操作员页面共用；完成后才进入 L2 额外扫描目标。
-    int tryL2HighCurrent = 850;
-    int tryL2MiddleCurrent = 200;
-    int tryL2FinalCurrent = LaserController::L2_ENABLE_L3_MA;
-    int tryL2Phase1TimeSec = 40;
-    int tryL2Phase2TimeSec = 15;
-    int tryL2Phase3TimeSec = 5;
-    int tryL2StartupStepSize = 10;
-    // L2 扫描参数
+    // L2 单段缓升参数（操作员启动和 TRY 共用同一组参数）
     int tryL2TargetMA = 460;       // L2 终点电流
     int tryL2StepSize = 10;        // L2 步长
-    int tryL2TimeSec = 30;         // L2 扫描时长
+    int tryL2TimeSec = 30;         // L2 缓升时长
     // L3 扫描参数（硬件单步约 100 mA）
     int tryL3TargetMA = 5000;      // L3 终点电流
     int tryL3StepSize = 100;       // L3 步长（硬件最小）
