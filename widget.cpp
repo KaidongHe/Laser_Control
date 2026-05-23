@@ -450,24 +450,22 @@ void Widget::on_laser3DownBtn_clicked() { adjustLaser(3, -1); }
 void Widget::on_laser1spinbox_editingFinished()
 {
     int target = ui->laser1spinbox->value();
-    // SpinBox 直接输入目标值时交给控制核心执行，失败则回滚到控制核心记录的真实设定值。
-    if (!controller->setLaserTarget(1, target, laser1Coarse)) {
-        ui->laser1spinbox->blockSignals(true);
-        ui->laser1spinbox->setValue(controller->currentLaserMa(1));
-        ui->laser1spinbox->blockSignals(false);
-    }
+    // SpinBox 只作为目标输入；提交后立刻回显当前设定值，后续由 currentChanged 按 ramp 进度逐步刷新。
+    controller->setLaserTarget(1, target, laser1Coarse);
+    ui->laser1spinbox->blockSignals(true);
+    ui->laser1spinbox->setValue(controller->currentLaserMa(1));
+    ui->laser1spinbox->blockSignals(false);
     updateAllLaserVisuals();
 }
 
 void Widget::on_laser2spinbox_editingFinished()
 {
     int target = ui->laser2spinbox->value();
-    // SpinBox 直接输入目标值时交给控制核心执行，失败则回滚到控制核心记录的真实设定值。
-    if (!controller->setLaserTarget(2, target, laser2Coarse)) {
-        ui->laser2spinbox->blockSignals(true);
-        ui->laser2spinbox->setValue(controller->currentLaserMa(2));
-        ui->laser2spinbox->blockSignals(false);
-    }
+    // SpinBox 只作为目标输入；提交后立刻回显当前设定值，后续由 currentChanged 按 ramp 进度逐步刷新。
+    controller->setLaserTarget(2, target, laser2Coarse);
+    ui->laser2spinbox->blockSignals(true);
+    ui->laser2spinbox->setValue(controller->currentLaserMa(2));
+    ui->laser2spinbox->blockSignals(false);
     updateAllLaserVisuals();
 }
 
@@ -480,11 +478,11 @@ void Widget::on_laser3spinbox_editingFinished()
     target = minMa + ((target - minMa + step / 2) / step) * step;
     target = qBound(minMa, target, controller->laserMaxMa(3));
     // L3 的最低值来自配置，目标对齐后仍由控制核心统一处理。
-    if (!controller->setLaserTarget(3, target, true)) {
-        ui->laser3spinbox->blockSignals(true);
-        ui->laser3spinbox->setValue(controller->currentLaserMa(3));
-        ui->laser3spinbox->blockSignals(false);
-    }
+    // 提交后回显当前设定值，避免目标值抢占实时 ramp 显示。
+    controller->setLaserTarget(3, target, true);
+    ui->laser3spinbox->blockSignals(true);
+    ui->laser3spinbox->setValue(controller->currentLaserMa(3));
+    ui->laser3spinbox->blockSignals(false);
     updateAllLaserVisuals();
 }
 

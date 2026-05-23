@@ -83,6 +83,7 @@ public:
     int laserStepMa(int laserIndex, bool coarseMode) const;
     int operatorPowerMinPercent() const;
     int operatorPowerMaxPercent() const;
+    int operatorPowerPercentStep() const;
     int operatorPowerPercentToMa(int percent) const;
     int operatorPowerMaToPercent(int currentMa) const;
     bool temperatureReadyBypassEnabled() const;

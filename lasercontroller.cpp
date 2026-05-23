@@ -496,6 +496,17 @@ int LaserController::operatorPowerMaxPercent() const
     return cfg.l3MaxPercent;
 }
 
+int LaserController::operatorPowerPercentStep() const
+{
+    const int percentRange = cfg.l3MaxPercent - cfg.l3MinPercent;
+    const int maRange = cfg.l3MaxMa - cfg.l3MinMa;
+    if (percentRange <= 0 || maRange <= 0) return 1;
+
+    // 普通页面回显“当前实际百分比”时，+/- 必须一次跨过至少一个 L3 硬件电流档位。
+    // 否则 2% -> 3% 仍映射到 800 mA，会被实时回显折回 2%，表现为按键无效。
+    return qMax(1, (cfg.l3StepMa * percentRange + maRange - 1) / maRange);
+}
+
 bool LaserController::laserReadyForStartup(int laserIndex) const
 {
 #ifdef DEBUG_MODE

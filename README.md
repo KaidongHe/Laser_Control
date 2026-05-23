@@ -201,7 +201,7 @@ L2 在普通页面开启和 TRY 扫描中**共用同一套参数**：
 | `[StartupL2]` | L2 普通启动和 TRY L2 段，唯一 L2 启动/扫描参数源 |
 | `[Step]` | 与 STM32 指令对应的固定步长 |
 | `[L3OperatorPower]` | 普通页面功率百分比到 L3 mA 的映射 |
-| `[Ramp]` | 默认缓升间隔、最小间隔、手动发送间隔 |
+| `[Ramp]` | 缓升间隔配置（默认/最小/手动均为 67ms，统一锁 15Hz） |
 | `[Temperature]` | 临时温度 ready 旁路开关，默认关闭 |
 | `[DeveloperTry]` | TRY L3 扫描目标和时长；L2 的 DeveloperTry 键仅作兼容镜像，实际以 `[StartupL2]` 为准 |
 
@@ -346,7 +346,42 @@ STM32 周期性上报 STAT
 4. 增加 ACK/NAK、命令序号和超时重试。
 5. 将文本协议升级为结构化协议，例如 `STAT,L1,READY`、`ACK,1,98`、`NAK,2,TEMP_NOT_READY`。
 
-## 9. 安全注意
+## 9. 全局发送限速（15Hz）
+
+所有串口发送路径最终都经过 `sendLaserCommand()`，内部通过三处配置形成统一的 15Hz（≈67ms）硬上限：
+
+### 9.1 三层限速
+
+```
+界面请求（+/-按钮 / SpinBox / TRY / 操作员页面）
+  │
+  ├─ 手动单步: adjustLaser()
+  │     └─ sendLaserCommand() 检查 lastSentTimers < minManualSendIntervalMs (67ms)
+  │
+  ├─ 缓升/缓降: setLaserTarget() → processRampStep()
+  │     └─ rampIntervalForTarget()
+  │           ├─ 有 durationMs: qMax(minRampIntervalMs (67ms), durationMs / steps)
+  │           └─ 无 durationMs: defaultRampIntervalMs (67ms)
+  │
+  └─ TRY 扫描: tryStep()
+        └─ tryIntervalForSegment() → qMax(kTryMinIntervalMs (67ms), totalTime / steps)
+```
+
+| 常量 | 位置 | 值 | 作用 |
+|---|---|---|---|
+| `minManualSendIntervalMs` | lasercontroller.h:197 | 67ms | `sendLaserCommand()` 每路硬地板，所有路径最终瓶颈 |
+| `minRampIntervalMs` | lasercontroller.h:196 | 67ms | `rampIntervalForTarget()` 指定时长时的下限 |
+| `defaultRampIntervalMs` | lasercontroller.h:195 | 67ms | ramp 无指定时长时的默认间隔 |
+| `kTryMinIntervalMs` | widget.cpp:13 | 67ms | `tryIntervalForSegment()` 计算 TRY 步进间隔的下限 |
+
+### 9.2 设计要点
+
+- **三值同步**：`defaultRampIntervalMs` = `minRampIntervalMs` = `minManualSendIntervalMs` = 67ms，保证无论走哪条代码路径，发送间隔都不会低于 67ms（约 15Hz）。
+- **跨通道独立计时**：`sendLaserCommand()` 中 `lastSentTimers` 按激光器索引（L1/L2/L3）独立管理，同一路不会超速，但三路可并发发送。
+- **TRY 的 `kTryMinIntervalMs`**：即使配置的总时长很短导致反推间隔过小（如 5 秒扫描 500 步 = 10ms），也会被强制拉到 67ms。
+- **Debug 模式不检查**：`sendLaserCommand()` 中 `serialPort && serialPort->isOpen()` 为 false 时跳过时间检查。
+
+## 10. 安全注意
 
 - 生产环境应关闭 `DEBUG_MODE`，否则不会真正通过串口控制硬件。
 - 当前软件电流主要是上位机 setpoint，实测电流只用于显示和曲线观察。
@@ -354,3 +389,31 @@ STM32 周期性上报 STAT
 - `Temperature/BypassReadyCheck=true` 仅为临时旁路，不代表温度安全已由上位机验证。
 - 如果 setpoint 和实测值差异明显，应暂停操作并检查硬件响应、温度就绪、驱动饱和或保护状态。
 - 后续建议继续完善 ACK/NAK、序号、CRC、超时重试和实测电流闭环联锁。
+
+## 附录：更新记录
+
+### 2026-05-23
+
+**L2 启动曲线简化（三段式 → 单段缓升）**
+- L2 从 `0→850→200→90mA` 三段式改为 `0→460mA` 单段缓升（步长 10mA，时长 30s）。
+- 移除 `TryPhaseL2Start1/2/3` 三个 TRY 状态，TryPhaseL2 直接执行单段缓升。
+- `requestOperatorSwitch(2, true)` 改为调用 `setLaserTarget()` 而非 `startOperatorSoftOn()`。
+- L2 参数弹窗从 10 个控件精简为 3 个（目标电流、缓升时长、步长）。
+
+**L2 参数统一化**
+- 普通页面 L2 开启和 TRY L2 扫描共用同一套 `[StartupL2]` 参数（`FinalMa`、`RiseDurationMs`、`StepMa`）。
+- L2 参数弹窗不再暴露独立的 TRY 目标/步长/时间字段，保存时自动同步。
+- TRY 扫描弹窗中 L2 参数改为只读显示，标注"来自 L2 参数"。
+- `loadConfig()` 启动时强制 `tryL2TargetMa = startupL2FinalMa`，旧 ini 的 `DeveloperTry/L2*` 降级为兼容镜像。
+
+**全局发送限速 15Hz（67ms）**
+- `defaultRampIntervalMs` 150→67ms，`minRampIntervalMs` 1→67ms，`minManualSendIntervalMs` 120→67ms。
+- widget.cpp 新增 `kTryMinIntervalMs = 67`，`tryIntervalForSegment()` 下限从 1ms 提高到 67ms。
+- 三层限速统一锁在 15Hz，消除 ramp 间隔小于 `sendLaserCommand` 硬地板导致的发送失败风险。
+
+**普通页面功率步进**
+- 新增 `operatorPowerPercentStep()`，确保 +/- 一次跨过至少一个 L3 硬件电流档位（100mA），避免按键表现为无效。
+
+**按钮闪烁修复**
+- 新增 `visualRefreshTimer`（零毫秒单次定时器），合并同一事件循环内的多次 `updateAllLaserVisuals()` 调用。
+- TRY 扫描期间通过 `anyBusy || tryRunning` 锁定手动操作按钮，避免 ramp 段间隙短暂解锁。
