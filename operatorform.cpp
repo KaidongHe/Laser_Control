@@ -6,6 +6,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QDebug>
+#include <QFontMetrics>
 #include <QGraphicsDropShadowEffect>
 #include <QInputDialog>
 #include <QLabel>
@@ -13,6 +14,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QSpinBox>
 #include <QStringList>
 #include <QStyle>
@@ -29,6 +31,35 @@ void applySoftShadow(QWidget *widget, int blurRadius, int offsetY, int alpha)
     shadow->setColor(QColor(0, 0, 0, alpha));
     widget->setGraphicsEffect(shadow);
 }
+
+int longestLineWidth(const QFontMetrics &fm, const QString &text)
+{
+    int width = 0;
+    const QStringList lines = text.split('\n');
+    for (const QString &line : lines) {
+        width = qMax(width, fm.horizontalAdvance(line));
+    }
+    return width;
+}
+
+void keepButtonTextReadable(QPushButton *button, int minWidth)
+{
+    if (!button) return;
+    const int textWidth = longestLineWidth(QFontMetrics(button->font()), button->text());
+    button->setMinimumWidth(qMax(button->minimumWidth(), qMax(minWidth, textWidth + 34)));
+    QSizePolicy policy = button->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::MinimumExpanding);
+    button->setSizePolicy(policy);
+}
+
+void keepWidgetReadable(QWidget *widget, int minWidth)
+{
+    if (!widget) return;
+    widget->setMinimumWidth(qMax(widget->minimumWidth(), minWidth));
+    QSizePolicy policy = widget->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::Expanding);
+    widget->setSizePolicy(policy);
+}
 }
 
 operatorForm::operatorForm(QWidget *parent) :
@@ -44,6 +75,12 @@ operatorForm::operatorForm(LaserController *sharedController, QWidget *parent) :
 {
     ui->setupUi(this);
     setWindowTitle(QStringLiteral("Laser Control System"));
+    keepButtonTextReadable(ui->seedButton, 260);
+    keepButtonTextReadable(ui->preReleaseButton, 260);
+    keepButtonTextReadable(ui->serialConnectButton, 82);
+    keepWidgetReadable(ui->serialComboBox, 150);
+    keepWidgetReadable(ui->powerSpinBox, 220);
+    ui->statusDisplayLabel->setWordWrap(true);
 
     // 串口连接控件已经放在 operatorform.ui 中；这里只做初始化和后续状态刷新，控制仍统一交给 LaserController。
     setupSerialControls();
@@ -151,6 +188,10 @@ operatorForm::operatorForm(LaserController *sharedController, QWidget *parent) :
         updateOperatorSerialUi(opened, portName);
         updateOperatorLockState();
     });
+    connect(controller, &LaserController::lowerDeviceStateSyncChanged, this, [this](bool) {
+        updateOperatorSerialUi(controller->isSerialOpen(), controller->currentPortName());
+        updateOperatorLockState();
+    });
 #ifdef QT_DEBUG
     // 普通操作员页面在 Qt Debug 构建下同步输出控制核心日志，便于不打开开发者窗口也能看串口收发和联锁提示。
     connect(controller, &LaserController::logMessage, this, [](const QString &msg) {
@@ -177,7 +218,7 @@ void operatorForm::setupSerialControls()
     ui->serialComboBox->setToolTip(QString::fromUtf8(u8"选择普通模式要连接的串口"));
     ui->serialConnectButton->setCursor(Qt::PointingHandCursor);
     ui->serialStatusLabel->setAlignment(Qt::AlignCenter);
-    updateTemperatureBypassWarning();
+    updateStatusDisplay();
 }
 
 void operatorForm::refreshOperatorSerialPorts()
@@ -232,10 +273,14 @@ void operatorForm::updateOperatorSerialUi(bool opened, const QString &portName)
           "QPushButton:hover { background: #245FBD; }"
           "QPushButton:disabled { background: #C8D0DC; color: #F5F7FA; }");
 
+    const QString displayPort = portName.isEmpty() ? QStringLiteral("-") : portName;
     const QString statusText = opened
-            ? QString::fromUtf8(u8"● 已连接 %1").arg(portName.isEmpty() ? QStringLiteral("-") : portName)
+            ? QString::fromUtf8(u8"● 已连接 %1").arg(displayPort)
             : QString::fromUtf8(u8"● 未连接");
     ui->serialStatusLabel->setText(statusText);
+    ui->serialStatusLabel->setToolTip(opened
+        ? QString::fromUtf8(u8"串口已连接；下位机状态显示在状态显示栏")
+        : QString());
     ui->serialStatusLabel->setStyleSheet(opened
         ? "QLabel { color: #197A50; font-family: 'Microsoft YaHei'; font-size: 12px; font-weight: 600; }"
         : "QLabel { color: #9AA4B2; font-family: 'Microsoft YaHei'; font-size: 12px; font-weight: 600; }");
@@ -334,9 +379,14 @@ void operatorForm::applyPowerPercent()
     if (!controller->requestOperatorPowerPercent(percent, &reason)) {
         QMessageBox::warning(this, QString::fromUtf8(u8"L3 功率设置被拒绝"),
                              reason.isEmpty() ? QString::fromUtf8(u8"请先按顺序开启 L1 和预放 L2。") : reason);
+        syncPowerSpinBoxFromLaser3();
+    } else {
+        requestedPowerPercent = qBound(controller->operatorPowerMinPercent(),
+                                       percent,
+                                       controller->operatorPowerMaxPercent());
+        QSignalBlocker blocker(ui->powerSpinBox);
+        ui->powerSpinBox->setValue(requestedPowerPercent);
     }
-    // SpinBox 只作为目标输入；提交后立即回显当前 L3 设定值，后续由 currentChanged 按 ramp 进度逐步刷新。
-    syncPowerSpinBoxFromLaser3();
     updateOperatorLockState();
 }
 
@@ -409,7 +459,7 @@ void operatorForm::updateOperatorLockState()
 
     const bool hasTransport = controller->hasLaserTransport();
     const bool anyBusy = controller->isAnyLaserBusy() || l1Busy || l2Busy || l3Busy;
-    updateTemperatureBypassWarning();
+    updateStatusDisplay();
 
     // L1 也必须跟随关机顺序联锁：如果 L2/L3 还没有回到安全态，普通页面不能先关闭 L1。
     const bool canRequestL1On = !seedEnabled && controller->canAdjustLaser(1, +1);
@@ -469,17 +519,48 @@ void operatorForm::updateOperatorLockState()
                                     : QString::fromUtf8(u8"请先连接串口")));
 }
 
-void operatorForm::updateTemperatureBypassWarning()
+void operatorForm::updateStatusDisplay()
 {
-    if (!ui->temperatureBypassWarningLabel) return;
+    if (!ui->statusDisplayLabel) return;
 
-    const bool bypass = controller && controller->temperatureReadyBypassEnabled();
-    // 旁路提示必须持续显示在普通页面，避免操作员误以为上位机已经验证了温度 ready。
-    const QString warningText = QString::fromUtf8(
-        u8"警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。");
-    ui->temperatureBypassWarningLabel->setText(bypass ? warningText : QString());
-    ui->temperatureBypassWarningLabel->setToolTip(bypass ? warningText : QString());
-    ui->temperatureBypassWarningLabel->setVisible(bypass);
+    const bool hasTransport = controller && controller->hasLaserTransport();
+    const bool stateSynchronized = controller && controller->isLowerDeviceStateSynchronized();
+    const bool bypass = stateSynchronized && controller && controller->temperatureReadyBypassEnabled();
+
+    QString statusText;
+    QString styleSheet;
+
+    if (!hasTransport) {
+        statusText = QString::fromUtf8(u8"未连接串口。");
+        styleSheet = QString::fromUtf8(
+            u8"QLabel { color: #6B7280; background: #F3F6FA; border: 1px solid #D6DEE9; "
+            u8"border-radius: 6px; padding: 5px 8px; font-family: 'Microsoft YaHei'; "
+            u8"font-size: 12px; font-weight: 600; }");
+    } else if (!stateSynchronized) {
+        statusText = QString::fromUtf8(u8"正在查询下位机状态，完成前禁止操作激光器。");
+        styleSheet = QString::fromUtf8(
+            u8"QLabel { color: #B87900; background: #FFF7DB; border: 1px solid #F0C36A; "
+            u8"border-radius: 6px; padding: 5px 8px; font-family: 'Microsoft YaHei'; "
+            u8"font-size: 12px; font-weight: 600; }");
+    } else if (bypass) {
+        statusText = QString::fromUtf8(
+            u8"下位机状态已同步。警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。");
+        styleSheet = QString::fromUtf8(
+            u8"QLabel { color: #B87900; background: #FFF7DB; border: 1px solid #F0C36A; "
+            u8"border-radius: 6px; padding: 5px 8px; font-family: 'Microsoft YaHei'; "
+            u8"font-size: 12px; font-weight: 600; }");
+    } else {
+        statusText = QString::fromUtf8(u8"下位机状态已同步。");
+        styleSheet = QString::fromUtf8(
+            u8"QLabel { color: #197A50; background: #EAF7EF; border: 1px solid #9BD3B1; "
+            u8"border-radius: 6px; padding: 5px 8px; font-family: 'Microsoft YaHei'; "
+            u8"font-size: 12px; font-weight: 600; }");
+    }
+
+    ui->statusDisplayLabel->setText(statusText);
+    ui->statusDisplayLabel->setToolTip(statusText);
+    ui->statusDisplayLabel->setStyleSheet(styleSheet);
+    ui->statusDisplayLabel->setVisible(true);
 }
 
 void operatorForm::syncPowerSpinBoxFromLaser3()
@@ -487,6 +568,19 @@ void operatorForm::syncPowerSpinBoxFromLaser3()
     if (!controller || !ui->powerSpinBox) return;
 
     // L3 被开发者页面或控制核心改变时，普通页面显示跟随真实设定电流反算出的百分比。
+    // 如果用户刚设置过百分比，且当前 L3 仍在调整中或已经落入该百分比的容差范围，则保持用户选择的档位。
+    const int currentMa = controller->currentLaserMa(3);
+    int displayPercent = controller->operatorPowerMaToPercent(currentMa);
+    if (requestedPowerPercent >= controller->operatorPowerMinPercent()
+        && requestedPowerPercent <= controller->operatorPowerMaxPercent()
+        && (l3Busy
+            || controller->isLaserBusy(3)
+            || controller->operatorPowerMaMatchesPercent(currentMa, requestedPowerPercent))) {
+        displayPercent = requestedPowerPercent;
+    } else {
+        requestedPowerPercent = displayPercent;
+    }
+
     QSignalBlocker blocker(ui->powerSpinBox);
-    ui->powerSpinBox->setValue(controller->operatorPowerMaToPercent(controller->currentLaserMa(3)));
+    ui->powerSpinBox->setValue(displayPercent);
 }

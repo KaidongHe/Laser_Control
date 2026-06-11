@@ -105,7 +105,7 @@ public:
     QLabel *reasonLabel3;
     QSpacerItem *vs3;
     QPlainTextEdit *receiveEdit;
-    QLabel *developerTemperatureBypassWarningLabel;
+    QLabel *developerStatusDisplayLabel;
     QHBoxLayout *serialRow;
     QSpacerItem *sp1;
     QLabel *label;
@@ -544,13 +544,13 @@ public:
 
         rootLayout->addWidget(receiveEdit);
 
-        developerTemperatureBypassWarningLabel = new QLabel(Widget);
-        developerTemperatureBypassWarningLabel->setObjectName(QString::fromUtf8("developerTemperatureBypassWarningLabel"));
-        developerTemperatureBypassWarningLabel->setVisible(false);
-        developerTemperatureBypassWarningLabel->setAlignment(Qt::AlignCenter);
-        developerTemperatureBypassWarningLabel->setWordWrap(true);
+        developerStatusDisplayLabel = new QLabel(Widget);
+        developerStatusDisplayLabel->setObjectName(QString::fromUtf8("developerStatusDisplayLabel"));
+        developerStatusDisplayLabel->setVisible(false);
+        developerStatusDisplayLabel->setAlignment(Qt::AlignCenter);
+        developerStatusDisplayLabel->setWordWrap(true);
 
-        rootLayout->addWidget(developerTemperatureBypassWarningLabel);
+        rootLayout->addWidget(developerStatusDisplayLabel);
 
         serialRow = new QHBoxLayout();
         serialRow->setSpacing(6);
@@ -637,7 +637,7 @@ public:
 "QLabel#measuredLabel1, QLabel#measuredLabel2, QLabel#measuredLabel3 { color: #FFC840; font-size: 11px; }\n"
 "QLabel#reasonLabel1, QLabel#reasonLabel2, QLabel#reasonLabel3 { color: #FF6060; font-size: 11px; font-style: italic; }\n"
 "QLabel#ledLabel1, QLabel#ledLabel2, QLabel#ledLabel3 { font-size: 18px; font-weight: bold; }\n"
-"QLabel#developerTemperatureBypassWarningLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }\n"
+"QLabel#developerStatusDisplayLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }\n"
 "QPushButton#tryButton { background-color: #2196F3; }\n"
 "QPushButton#tryBu"
                         "tton:hover { background-color: #CC5500; }", nullptr));
@@ -684,7 +684,7 @@ public:
         mode3Title->setText(QCoreApplication::translate("Widget", "\346\255\245\351\225\277 100 mA", nullptr));
         laser3ParamsButton->setText(QCoreApplication::translate("Widget", "\345\217\202\346\225\260", nullptr));
         reasonLabel3->setText(QString());
-        developerTemperatureBypassWarningLabel->setText(QCoreApplication::translate("Widget", "\346\270\251\345\272\246\346\227\201\350\267\257\345\267\262\345\274\200\345\220\257\357\274\232\344\270\212\344\275\215\346\234\272\346\234\252\351\252\214\350\257\201\346\270\251\345\272\246\345\260\261\347\273\252\357\274\214\346\234\200\347\273\210\344\277\235\346\212\244\344\276\235\350\265\226\344\270\213\344\275\215\346\234\272", nullptr));
+        developerStatusDisplayLabel->setText(QCoreApplication::translate("Widget", "\346\234\252\350\277\236\346\216\245\344\270\262\345\217\243\343\200\202", nullptr));
         label->setText(QCoreApplication::translate("Widget", "\344\270\262\345\217\243\345\217\267", nullptr));
         openBt->setText(QCoreApplication::translate("Widget", "\346\211\223\345\274\200\344\270\262\345\217\243", nullptr));
         closeBt->setText(QCoreApplication::translate("Widget", "\345\205\263\351\227\255\344\270\262\345\217\243", nullptr));

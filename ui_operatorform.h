@@ -39,7 +39,7 @@ public:
     PillSpinBox *powerSpinBox;
     QLabel *powerLabel;
     QPushButton *developerButton;
-    QLabel *temperatureBypassWarningLabel;
+    QLabel *statusDisplayLabel;
 
     void setupUi(QWidget *operatorForm)
     {
@@ -140,7 +140,7 @@ public:
 "  font-size: 12px;\n"
 "  font-weight: 600;\n"
 "}\n"
-"QLabel#temperatureBypassWarningLabel {\n"
+"QLabel#statusDisplayLabel {\n"
 "  color: #B7791F;\n"
 "  background: #FFF7DB;\n"
 "  border: 1px solid #F0C36A;\n"
@@ -228,12 +228,12 @@ public:
         developerButton->setObjectName(QString::fromUtf8("developerButton"));
         developerButton->setGeometry(QRect(450, 630, 91, 28));
         developerButton->setCursor(QCursor(Qt::PointingHandCursor));
-        temperatureBypassWarningLabel = new QLabel(operatorForm);
-        temperatureBypassWarningLabel->setObjectName(QString::fromUtf8("temperatureBypassWarningLabel"));
-        temperatureBypassWarningLabel->setGeometry(QRect(60, 570, 431, 51));
-        temperatureBypassWarningLabel->setVisible(true);
-        temperatureBypassWarningLabel->setAlignment(Qt::AlignCenter);
-        temperatureBypassWarningLabel->setWordWrap(true);
+        statusDisplayLabel = new QLabel(operatorForm);
+        statusDisplayLabel->setObjectName(QString::fromUtf8("statusDisplayLabel"));
+        statusDisplayLabel->setGeometry(QRect(60, 570, 431, 51));
+        statusDisplayLabel->setVisible(true);
+        statusDisplayLabel->setAlignment(Qt::AlignCenter);
+        statusDisplayLabel->setWordWrap(true);
 
         retranslateUi(operatorForm);
 
@@ -255,7 +255,7 @@ public:
         powerSpinBox->setSuffix(QString());
         powerLabel->setText(QCoreApplication::translate("operatorForm", "<div align=\"center\"><span style=\"color:#9AA4B2; font-size:11px; font-weight:600;\">OUTPUT POWER</span><br/><span style=\"color:#7E8794; font-size:15px; font-weight:500;\">\345\212\237\347\216\207\350\260\203\350\212\202</span></div>", nullptr));
         developerButton->setText(QCoreApplication::translate("operatorForm", "\345\274\200\345\217\221\350\200\205", nullptr));
-        temperatureBypassWarningLabel->setText(QString());
+        statusDisplayLabel->setText(QString());
         (void)operatorForm;
     } // retranslateUi
 

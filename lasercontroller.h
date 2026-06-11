@@ -2,9 +2,12 @@
 #define LASERCONTROLLER_H
 
 #include <QObject>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QSerialPort>
 #include <QStringList>
+
+#include <cstdint>
 
 // ===== Debug模式宏定义 =====
 // 控制核心也使用同一 Debug 开关，避免界面和控制层对“是否需要真实串口”的理解不一致。
@@ -68,6 +71,7 @@ public:
     bool laserRawReady(int laserIndex) const;
     bool isLaserBusy(int laserIndex) const;
     bool isAnyLaserBusy() const;
+    bool isLowerDeviceStateSynchronized() const;
 
     bool canAdjustLaser(int laserIndex, int direction) const;
     QString adjustBlockReason(int laserIndex, int direction) const;
@@ -86,6 +90,7 @@ public:
     int operatorPowerPercentStep() const;
     int operatorPowerPercentToMa(int percent) const;
     int operatorPowerMaToPercent(int currentMa) const;
+    bool operatorPowerMaMatchesPercent(int currentMa, int percent) const;
     bool temperatureReadyBypassEnabled() const;
     DeveloperRuntimeParams developerRuntimeParams() const;
 
@@ -103,6 +108,7 @@ signals:
     void readyChanged(int laserIndex, bool ready, bool rawReady);
     void stateChanged();
     void transportChanged(bool opened, const QString &portName);
+    void lowerDeviceStateSyncChanged(bool synchronized);
     void busyChanged(int laserIndex, bool busy);
     void operationStarted(int laserIndex, int targetMa);
     void operationProgress(int laserIndex, int currentMa, int targetMa);
@@ -117,7 +123,12 @@ private slots:
     void processRampStep();
 
 private:
-    bool sendLaserCommand(int laserIndex, char cmd);
+    enum class SendResult {
+        Sent,
+        RateLimited,
+        Error
+    };
+    SendResult sendLaserCommand(int laserIndex, char cmd);
     bool startRampToTarget(int laserIndex, int target, bool coarseMode, int durationMs = -1);
     bool startOperatorSoftOn(int laserIndex);
     bool continueOperatorSoftOn(int finishedLaser);
@@ -145,6 +156,22 @@ private:
     void updateLaserDependencies();
     void updateLaserStatusFromSend(int laserIndex);
     void setCurrentLaserMa(int laserIndex, int value);
+
+    // STM32 v1.3 text frame protocol helpers
+    static QByteArray buildTextFrame(char cmd);
+    static uint8_t calcChecksum(char cmd);
+    SendResult sendStatusQuery(char cmd);
+    SendResult queryAllLaserStatus();
+    SendResult queryLaserStatus(int laserIndex);
+    void scheduleInitialStatusQuery();
+    void runInitialStatusQuery(int attempt);
+    void simulateDebugStatusQueryResponse(char cmd);
+    void parseSetpointFromLine(const QString &line);
+    void beginLowerDeviceStateSync();
+    void markLowerDeviceStatusReceived(int laserIndex);
+    void setLowerDeviceStateSynchronized(bool synchronized);
+    void clearPendingCommand(int laserIndex);
+    void clearAllPendingCommands();
     void setMeasuredLaserMa(int laserIndex, double value);
     void setRawReady(int laserIndex, bool ready);
     void emitAllReadyStates();
@@ -227,15 +254,19 @@ private:
     bool laser1Ready = false;
     bool laser2Ready = false;
     bool laser3Ready = false;
+    bool lowerDeviceStateSynchronized = false;
+    int lowerDeviceStatusMask = 0;
 
     QElapsedTimer lastSentTimers[3];
     QElapsedTimer globalSendTimer; // 全局串口发送硬限速：任意两条真实命令之间至少间隔约 67ms，避免跨通道叠加超 15Hz
+    bool commandAckPending[3] = {false, false, false};
     int minSendIntervalMs = 120;
     int rampIntervalMs = 100;
     QByteArray rxBuffer;
 
     int rampLaserIndex = 0;
     int rampTargetMa = 0;
+    int rampDirection = 0;
     bool rampCoarseMode = true;
 
     enum OperatorSoftPhase {

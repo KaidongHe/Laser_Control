@@ -41,7 +41,7 @@ QLabel#bigCurrent3 { color: #C080FF; font-size: 28px; font-weight: bold; }
 QLabel#measuredLabel1, QLabel#measuredLabel2, QLabel#measuredLabel3 { color: #FFC840; font-size: 11px; }
 QLabel#reasonLabel1, QLabel#reasonLabel2, QLabel#reasonLabel3 { color: #FF6060; font-size: 11px; font-style: italic; }
 QLabel#ledLabel1, QLabel#ledLabel2, QLabel#ledLabel3 { font-size: 18px; font-weight: bold; }
-QLabel#developerTemperatureBypassWarningLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }
+QLabel#developerStatusDisplayLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }
 QPushButton#tryButton { background-color: #2196F3; }
 QPushButton#tryButton:hover { background-color: #CC5500; }</string>
   </property>
@@ -720,12 +720,12 @@ QPushButton#tryButton:hover { background-color: #CC5500; }</string>
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="developerTemperatureBypassWarningLabel">
+    <widget class="QLabel" name="developerStatusDisplayLabel">
      <property name="visible">
       <bool>false</bool>
      </property>
      <property name="text">
-      <string>温度旁路已开启：上位机未验证温度就绪，最终保护依赖下位机</string>
+      <string>未连接串口。</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

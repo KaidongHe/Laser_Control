@@ -108,7 +108,7 @@ QLabel#serialStatusLabel {
   font-size: 12px;
   font-weight: 600;
 }
-QLabel#temperatureBypassWarningLabel {
+QLabel#statusDisplayLabel {
   color: #B7791F;
   background: #FFF7DB;
   border: 1px solid #F0C36A;
@@ -306,7 +306,7 @@ QLabel#temperatureBypassWarningLabel {
     <string>开发者</string>
    </property>
   </widget>
-  <widget class="QLabel" name="temperatureBypassWarningLabel">
+  <widget class="QLabel" name="statusDisplayLabel">
    <property name="geometry">
     <rect>
      <x>60</x>

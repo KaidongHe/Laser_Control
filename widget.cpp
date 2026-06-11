@@ -4,7 +4,12 @@
 #include <QDialog>
 #include <QFormLayout>
 #include <QDialogButtonBox>
+#include <QFontMetrics>
 #include <QPlainTextEdit>
+#include <QPushButton>
+#include <QSizePolicy>
+#include <QSpinBox>
+#include <QStringList>
 
 static const QColor COLOR_L1(0, 200, 255);
 static const QColor COLOR_L2(255, 160, 64);
@@ -43,6 +48,35 @@ static int tryIntervalForSegment(int currentMa, int targetMa, int stepMa, int ti
     return qMax(kTryMinIntervalMs, (qMax(1, timeSec) * 1000) / steps);
 }
 
+static int longestLineWidth(const QFontMetrics &fm, const QString &text)
+{
+    int width = 0;
+    const QStringList lines = text.split('\n');
+    for (const QString &line : lines) {
+        width = qMax(width, fm.horizontalAdvance(line));
+    }
+    return width;
+}
+
+static void keepButtonTextReadable(QPushButton *button, int minWidth)
+{
+    if (!button) return;
+    const int textWidth = longestLineWidth(QFontMetrics(button->font()), button->text());
+    button->setMinimumWidth(qMax(button->minimumWidth(), qMax(minWidth, textWidth + 32)));
+    QSizePolicy policy = button->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::MinimumExpanding);
+    button->setSizePolicy(policy);
+}
+
+static void keepSpinBoxReadable(QSpinBox *spinBox, int minWidth)
+{
+    if (!spinBox) return;
+    spinBox->setMinimumWidth(qMax(spinBox->minimumWidth(), minWidth));
+    QSizePolicy policy = spinBox->sizePolicy();
+    policy.setHorizontalPolicy(QSizePolicy::Expanding);
+    spinBox->setSizePolicy(policy);
+}
+
 Widget::Widget(LaserController *sharedController, QWidget *parent) :
     QWidget(parent),
     ui(new Ui::Widget),
@@ -56,6 +90,13 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     setWindowTitle(QStringLiteral("Laser Control System"));
 
     this->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    keepSpinBoxReadable(ui->laser1spinbox, 92);
+    keepSpinBoxReadable(ui->laser2spinbox, 92);
+    keepSpinBoxReadable(ui->laser3spinbox, 104);
+    keepButtonTextReadable(ui->openBt, 88);
+    keepButtonTextReadable(ui->closeBt, 88);
+    keepButtonTextReadable(ui->tryButton, 140);
+    ui->developerStatusDisplayLabel->setWordWrap(true);
 
     visualRefreshTimer = new QTimer(this);
     visualRefreshTimer->setSingleShot(true);
@@ -110,11 +151,30 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
     });
     connect(controller, &LaserController::transportChanged, this, [this](bool opened, const QString &) {
         if (opened) {
-            ui->openBt->setText(QString::fromUtf8(u8"已连接"));
-            ui->openBt->setStyleSheet("QPushButton { background-color: green; color: white; } QPushButton:hover { background-color: #CC5500; }");
+            const bool synchronized = controller->isLowerDeviceStateSynchronized();
+            ui->openBt->setText(synchronized ? QString::fromUtf8(u8"已连接") : QString::fromUtf8(u8"同步中"));
+            ui->openBt->setToolTip(synchronized
+                                   ? QString::fromUtf8(u8"串口已连接，下位机状态已同步")
+                                   : QString::fromUtf8(u8"等待下位机 D 查询回包完成，期间禁止操作激光器"));
+            ui->openBt->setStyleSheet(synchronized
+                ? "QPushButton { background-color: green; color: white; } QPushButton:hover { background-color: #CC5500; }"
+                : "QPushButton { background-color: #B87900; color: white; } QPushButton:hover { background-color: #CC5500; }");
         } else {
             ui->openBt->setText(QString::fromUtf8(u8"打开串口"));
+            ui->openBt->setToolTip(QString());
             ui->openBt->setStyleSheet("");
+        }
+        updateAllLaserVisuals();
+    });
+    connect(controller, &LaserController::lowerDeviceStateSyncChanged, this, [this](bool synchronized) {
+        if (controller->isSerialOpen()) {
+            ui->openBt->setText(synchronized ? QString::fromUtf8(u8"已连接") : QString::fromUtf8(u8"同步中"));
+            ui->openBt->setToolTip(synchronized
+                                   ? QString::fromUtf8(u8"串口已连接，下位机状态已同步")
+                                   : QString::fromUtf8(u8"等待下位机 D 查询回包完成，期间禁止操作激光器"));
+            ui->openBt->setStyleSheet(synchronized
+                ? "QPushButton { background-color: green; color: white; } QPushButton:hover { background-color: #CC5500; }"
+                : "QPushButton { background-color: #B87900; color: white; } QPushButton:hover { background-color: #CC5500; }");
         }
         updateAllLaserVisuals();
     });
@@ -407,7 +467,9 @@ void Widget::updateLaserVisual(int laserIndex)
     if (downBtn) downBtn->setEnabled(canDown);
     if (spin) {
         // 非调节期 SpinBox 可输入；ramp/TRY 进行中先锁住，避免覆盖尚未完成的目标。
-        spin->setEnabled(hasLaserTransport() && !manualLocked);
+        spin->setEnabled(hasLaserTransport()
+                         && controller->isLowerDeviceStateSynchronized()
+                         && !manualLocked);
         spin->setKeyboardTracking(false);
     }
 
@@ -540,13 +602,39 @@ void Widget::updateTemperatureBypassUi()
           "QPushButton:disabled { background-color: #8B6A24; color: #E8E0C8; }"
         : "");
 
-    if (ui->developerTemperatureBypassWarningLabel) {
-        // 温度旁路属于安全风险提示，单独放在日志区下方；平时隐藏，开启时固定显示。
-        const QString warningText = QString::fromUtf8(
-            u8"警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。");
-        ui->developerTemperatureBypassWarningLabel->setText(warningText);
-        ui->developerTemperatureBypassWarningLabel->setToolTip(warningText);
-        ui->developerTemperatureBypassWarningLabel->setVisible(bypass);
+    if (ui->developerStatusDisplayLabel) {
+        const bool hasTransport = controller->hasLaserTransport();
+        const bool stateSynchronized = controller->isLowerDeviceStateSynchronized();
+
+        QString statusText;
+        QString styleSheet;
+        if (!hasTransport) {
+            statusText = QString::fromUtf8(u8"未连接串口。");
+            styleSheet = QString::fromUtf8(
+                u8"QLabel { color: #C8D0DC; background-color: #242A34; border: 1px solid #4B5563; "
+                u8"border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }");
+        } else if (!stateSynchronized) {
+            statusText = QString::fromUtf8(u8"正在查询下位机状态，完成前禁止操作激光器。");
+            styleSheet = QString::fromUtf8(
+                u8"QLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; "
+                u8"border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }");
+        } else if (bypass) {
+            statusText = QString::fromUtf8(
+                u8"下位机状态已同步。警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。");
+            styleSheet = QString::fromUtf8(
+                u8"QLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; "
+                u8"border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }");
+        } else {
+            statusText = QString::fromUtf8(u8"下位机状态已同步。");
+            styleSheet = QString::fromUtf8(
+                u8"QLabel { color: #B7F0CA; background-color: #133A24; border: 1px solid #2E8B57; "
+                u8"border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }");
+        }
+
+        ui->developerStatusDisplayLabel->setText(statusText);
+        ui->developerStatusDisplayLabel->setToolTip(statusText);
+        ui->developerStatusDisplayLabel->setStyleSheet(styleSheet);
+        ui->developerStatusDisplayLabel->setVisible(true);
     }
 }
 
@@ -810,6 +898,12 @@ void Widget::on_tryButton_clicked()
         QMessageBox::warning(this, "错误", "请先打开串口");
         return;
     }
+    if (!controller->isLowerDeviceStateSynchronized()) {
+        QMessageBox::warning(this,
+                             QString::fromUtf8(u8"状态同步中"),
+                             QString::fromUtf8(u8"请等待下位机状态查询成功后再开始 TRY 扫描。"));
+        return;
+    }
 
     QDialog dlg(this);
     dlg.setWindowTitle("扫描参数设置");
@@ -923,7 +1017,6 @@ void Widget::on_tryButton_clicked()
         if (remain2 <= 0) tryState = TryPhase3;
     }
 
-    int numSteps = 0;
     int intervalMs = 1000;
     switch (tryState) {
     case TryPhase1:

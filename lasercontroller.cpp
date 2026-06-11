@@ -10,12 +10,55 @@
 #include <QTimer>
 #include <QtGlobal>
 
+#include <cstdio>
+
 namespace {
 constexpr int kMinGlobalSendIntervalMs = 67; // 15Hz 硬上限：1000 / 15 ≈ 66.7ms，取 67ms 留一点余量
+constexpr int kInitialStatusQueryDelayMs = 500;
+constexpr int kInitialStatusQueryRetryDelayMs = 200;
+constexpr int kInitialStatusQueryMaxAttempts = 5;
+constexpr int kOperatorPowerStepErrorMa = 30;
 
 int normalizeStepChoice(int stepMa)
 {
     return (qAbs(stepMa - 1) <= qAbs(stepMa - 10)) ? 1 : 10;
+}
+
+int operatorPowerCenterMaForPercent(int percent,
+                                    int minPercent,
+                                    int maxPercent,
+                                    int minMa,
+                                    int maxMa,
+                                    int stepMa)
+{
+    const int clampedPercent = qBound(minPercent, percent, maxPercent);
+    if (maxPercent <= minPercent || maxMa <= minMa) return minMa;
+
+    const double ratio = double(clampedPercent - minPercent) / double(maxPercent - minPercent);
+    int targetMa = minMa + qRound(ratio * double(maxMa - minMa));
+
+    const int safeStep = qMax(1, stepMa);
+    const int offset = targetMa - minMa;
+    targetMa = minMa + ((offset + safeStep / 2) / safeStep) * safeStep;
+    return qBound(minMa, targetMa, maxMa);
+}
+
+bool operatorPowerCurrentInPercentRange(int currentMa,
+                                        int percent,
+                                        int minPercent,
+                                        int maxPercent,
+                                        int minMa,
+                                        int maxMa,
+                                        int stepMa)
+{
+    const int centerMa = operatorPowerCenterMaForPercent(percent, minPercent, maxPercent, minMa, maxMa, stepMa);
+    return qAbs(currentMa - centerMa) <= qMax(kOperatorPowerStepErrorMa,
+                                             qMax(1, stepMa) / 2 + kOperatorPowerStepErrorMa);
+}
+
+int laser3RampSettleToleranceMa(int stepMa)
+{
+    return qMax(kOperatorPowerStepErrorMa, qMax(1, stepMa) / 2 + kOperatorPowerStepErrorMa);
 }
 }
 
@@ -48,13 +91,15 @@ LaserController::LaserController(QObject *parent)
     connect(serialPort, &QSerialPort::errorOccurred, this, &LaserController::handleSerialError);
 
 #ifdef DEBUG_MODE
-    // Debug 模式默认模拟已具备控制通道，便于普通页面不打开开发者窗口也能走完整联锁流程。
+    // Debug 模式默认模拟已连接控制通道，但仍走一遍“查询中 -> 同步完成”的状态流程，
+    // 便于普通页面不接 STM32 时也能验证状态同步提示和联锁锁定。
     lastOpenedPortName = QStringLiteral("DEBUG");
     wasOpenedBefore = true;
-    laser1RawReady = true;
-    laser2RawReady = true;
-    laser3RawReady = true;
+    autoReconnectEnabled = true;
+    lowerDeviceStateSynchronized = false;
+    lowerDeviceStatusMask = 0;
     updateLaserDependencies();
+    scheduleInitialStatusQuery();
 #endif
 }
 
@@ -295,12 +340,15 @@ bool LaserController::openSerial(const QString &portName)
     lastOpenedPortName = QStringLiteral("DEBUG");
     wasOpenedBefore = true;
     autoReconnectEnabled = true;
-    laser1RawReady = true;
-    laser2RawReady = true;
-    laser3RawReady = true;
+    clearAllPendingCommands();
+    laser1RawReady = false;
+    laser2RawReady = false;
+    laser3RawReady = false;
     updateLaserDependencies();
+    beginLowerDeviceStateSync();
     emit logMessage(QString::fromUtf8(u8"[DEBUG] 模拟串口连接成功"));
     emit transportChanged(true, lastOpenedPortName);
+    scheduleInitialStatusQuery();
     return true;
 #else
     if (serialPort->isOpen()) {
@@ -329,8 +377,12 @@ bool LaserController::openSerial(const QString &portName)
     wasOpenedBefore = true;
     autoReconnectEnabled = true;
     rxBuffer.clear();
+    beginLowerDeviceStateSync();
     emit logMessage(QString::fromUtf8(u8"[INFO] 串口已打开: ") + portName);
     emit transportChanged(true, portName);
+
+    scheduleInitialStatusQuery();
+
     return true;
 #endif
 }
@@ -361,7 +413,7 @@ bool LaserController::hasLaserTransport() const
 {
 #ifdef DEBUG_MODE
     // Debug 模式跳过真实串口，但不跳过顺序联锁。
-    return true;
+    return wasOpenedBefore;
 #else
     return serialPort && serialPort->isOpen();
 #endif
@@ -370,7 +422,7 @@ bool LaserController::hasLaserTransport() const
 bool LaserController::isSerialOpen() const
 {
 #ifdef DEBUG_MODE
-    return true;
+    return wasOpenedBefore;
 #else
     return serialPort && serialPort->isOpen();
 #endif
@@ -429,6 +481,11 @@ bool LaserController::isLaserBusy(int laserIndex) const
 bool LaserController::isAnyLaserBusy() const
 {
     return rampTimer && rampTimer->isActive();
+}
+
+bool LaserController::isLowerDeviceStateSynchronized() const
+{
+    return lowerDeviceStateSynchronized;
 }
 
 int LaserController::l1EnableL2Ma() const
@@ -526,6 +583,7 @@ bool LaserController::laserReadyForStartup(int laserIndex) const
 bool LaserController::canAdjustLaser(int laserIndex, int direction) const
 {
     if (!hasLaserTransport()) return false;
+    if (!lowerDeviceStateSynchronized) return false;
 
     // 升高/开启必须按 L1 -> L2 -> L3 推进。
     if (direction > 0) {
@@ -571,6 +629,7 @@ bool LaserController::canAdjustLaser(int laserIndex, int direction) const
 QString LaserController::adjustBlockReason(int laserIndex, int direction) const
 {
     if (!hasLaserTransport()) return QString::fromUtf8(u8"串口未打开");
+    if (!lowerDeviceStateSynchronized) return QString::fromUtf8(u8"等待下位机状态同步完成");
 
     if (direction > 0) {
         switch (laserIndex) {
@@ -665,8 +724,10 @@ bool LaserController::adjustLaser(int laserIndex, int direction, bool coarseMode
     int newVal = qBound(lo, current + direction * step, hi);
     if (newVal == current) return true;
 
-    if (!sendLaserCommand(laserIndex, cmd)) return false;
+    if (sendLaserCommand(laserIndex, cmd) != SendResult::Sent) return false;
+#ifdef DEBUG_MODE
     setCurrentLaserMa(laserIndex, newVal);
+#endif
     return true;
 }
 
@@ -717,6 +778,7 @@ bool LaserController::startRampToTarget(int laserIndex, int target, bool coarseM
 
     rampLaserIndex = laserIndex;
     rampTargetMa = target;
+    rampDirection = (target > current) ? +1 : -1;
     rampCoarseMode = coarseMode;
     rampIntervalMs = rampIntervalForTarget(laserIndex, target, coarseMode, durationMs);
     rampTimer->start(rampIntervalMs);
@@ -744,8 +806,26 @@ void LaserController::processRampStep()
         finishRamp(true, QString::fromUtf8(u8"已到达目标电流"));
         return;
     }
+    if (rampLaserIndex == 3 && rampDirection != 0) {
+        const int toleranceMa = laser3RampSettleToleranceMa(cfg.l3StepMa);
+        const bool reachedByDirection =
+                (rampDirection > 0 && current >= rampTargetMa - toleranceMa)
+                || (rampDirection < 0 && current <= rampTargetMa + toleranceMa);
+        if (reachedByDirection) {
+            finishRamp(true, QString::fromUtf8(u8"已进入 L3 目标电流容差范围"));
+            return;
+        }
+    }
 
-    const int direction = (rampTargetMa > current) ? +1 : -1;
+#ifndef DEBUG_MODE
+    if (commandAckPending[rampLaserIndex - 1]) {
+        return;
+    }
+#endif
+
+    const int direction = (rampLaserIndex == 3 && rampDirection != 0)
+            ? rampDirection
+            : ((rampTargetMa > current) ? +1 : -1);
     if (!canAdjustLaser(rampLaserIndex, direction)) {
         finishRamp(false, adjustBlockReason(rampLaserIndex, direction));
         return;
@@ -764,17 +844,24 @@ void LaserController::processRampStep()
         return;
     }
 
-    if (!sendLaserCommand(rampLaserIndex, cmd)) {
-        finishRamp(false, QString::fromUtf8(u8"命令发送失败或发送间隔过短"));
+    const SendResult result = sendLaserCommand(rampLaserIndex, cmd);
+    if (result == SendResult::Error) {
+        finishRamp(false, QString::fromUtf8(u8"命令发送失败"));
+        return;
+    }
+    if (result == SendResult::RateLimited) {
+        // 速率限制触发时跳过本次 tick，rampTimer 下次触发时会重试。
         return;
     }
 
+#ifdef DEBUG_MODE
     setCurrentLaserMa(rampLaserIndex, current + direction * step);
     emit operationProgress(rampLaserIndex, currentLaserMa(rampLaserIndex), rampTargetMa);
 
     if (currentLaserMa(rampLaserIndex) == rampTargetMa) {
         finishRamp(true, QString::fromUtf8(u8"已到达目标电流"));
     }
+#endif
 }
 
 void LaserController::finishRamp(bool success, const QString &message)
@@ -789,6 +876,7 @@ void LaserController::finishRamp(bool success, const QString &message)
     rampTimer->stop();
     rampLaserIndex = 0;
     rampTargetMa = 0;
+    rampDirection = 0;
 
     const bool softContinuationExpected = success
             && finishedLaser == operatorSoftLaserIndex
@@ -881,7 +969,6 @@ bool LaserController::continueOperatorSoftOn(int finishedLaser)
 
     if (operatorSoftPhase == SoftRiseHigh) {
         operatorSoftPhase = SoftFallMiddle;
-        // 第二段从高点缓降到中间电流，目标值和时长由配置文件决定。
         // 第二段从高点回落到中间点，继续使用统一启动曲线配置。
         const bool softCoarseMode = startupCoarseMode(finishedLaser);
         const bool ok = startRampToTarget(finishedLaser,
@@ -898,8 +985,7 @@ bool LaserController::continueOperatorSoftOn(int finishedLaser)
 
     if (operatorSoftPhase == SoftFallMiddle) {
         operatorSoftPhase = SoftFallFinal;
-        // 第三段回到普通页面最终工作电流，完成后按钮才切换为“已开启”。
-        // 第三段回到最终工作电流；完成后普通页面按钮才切换为“已开启”。
+        // 第三段回到最终工作电流；完成后普通页面按钮才切换为”已开启”。
         const bool softCoarseMode = startupCoarseMode(finishedLaser);
         const bool ok = startRampToTarget(finishedLaser,
                                           operatorSoftFinalMa,
@@ -998,21 +1084,13 @@ bool LaserController::startupCoarseMode(int laserIndex) const
 
 int LaserController::operatorPowerPercentToMa(int percent) const
 {
-    const int minPercent = cfg.l3MinPercent;
-    const int maxPercent = cfg.l3MaxPercent;
-    const int minMa = cfg.l3MinMa;
-    const int maxMa = cfg.l3MaxMa;
-    const int clampedPercent = qBound(minPercent, percent, maxPercent);
-
-    // 普通操作员页面使用百分比显示，控制核心按配置统一换算到 L3 的真实 mA 目标值。
-    const double ratio = double(clampedPercent - minPercent) / double(maxPercent - minPercent);
-    int targetMa = minMa + qRound(ratio * double(maxMa - minMa));
-
-    // 普通页面 L3 功率按硬件固定步长对齐，默认 100 mA。
-    const int step = cfg.l3StepMa;
-    const int offset = targetMa - minMa;
-    targetMa = minMa + ((offset + step / 2) / step) * step;
-    return qBound(minMa, targetMa, maxMa);
+    // 普通操作员页面使用百分比档位显示，控制核心按配置统一换算到 L3 的 mA 档位中心。
+    return operatorPowerCenterMaForPercent(percent,
+                                           cfg.l3MinPercent,
+                                           cfg.l3MaxPercent,
+                                           cfg.l3MinMa,
+                                           cfg.l3MaxMa,
+                                           cfg.l3StepMa);
 }
 
 int LaserController::operatorPowerMaToPercent(int currentMa) const
@@ -1021,11 +1099,45 @@ int LaserController::operatorPowerMaToPercent(int currentMa) const
     const int maxPercent = cfg.l3MaxPercent;
     const int minMa = cfg.l3MinMa;
     const int maxMa = cfg.l3MaxMa;
-    const int clampedMa = qBound(minMa, currentMa, maxMa);
+    if (maxPercent <= minPercent || maxMa <= minMa) return minPercent;
 
-    // 开发者页面或控制核心改变 L3 后，普通页面按同一配置反算百分比，保持显示一致。
-    const double ratio = double(clampedMa - minMa) / double(maxMa - minMa);
-    return qBound(minPercent, minPercent + qRound(ratio * double(maxPercent - minPercent)), maxPercent);
+    const int clampedMa = qBound(minMa, currentMa, maxMa);
+    int bestPercent = minPercent;
+    int bestDistance = qAbs(clampedMa - operatorPowerCenterMaForPercent(minPercent,
+                                                                        minPercent,
+                                                                        maxPercent,
+                                                                        minMa,
+                                                                        maxMa,
+                                                                        cfg.l3StepMa));
+
+    // L3 实际 setpoint 可能相对单步目标有约 30 mA 浮动。回显时按内建百分比档位表找最近中心，
+    // 不再直接线性反算，避免普通页面百分比在相邻档位之间反复横跳。
+    for (int percent = minPercent + 1; percent <= maxPercent; ++percent) {
+        const int centerMa = operatorPowerCenterMaForPercent(percent,
+                                                             minPercent,
+                                                             maxPercent,
+                                                             minMa,
+                                                             maxMa,
+                                                             cfg.l3StepMa);
+        const int distance = qAbs(clampedMa - centerMa);
+        if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPercent = percent;
+        }
+    }
+
+    return bestPercent;
+}
+
+bool LaserController::operatorPowerMaMatchesPercent(int currentMa, int percent) const
+{
+    return operatorPowerCurrentInPercentRange(qBound(cfg.l3MinMa, currentMa, cfg.l3MaxMa),
+                                             percent,
+                                             cfg.l3MinPercent,
+                                             cfg.l3MaxPercent,
+                                             cfg.l3MinMa,
+                                             cfg.l3MaxMa,
+                                             cfg.l3StepMa);
 }
 
 bool LaserController::temperatureReadyBypassEnabled() const
@@ -1281,6 +1393,17 @@ bool LaserController::requestOperatorPowerPercent(int percent, QString *reason)
 
     const int target = operatorPowerPercentToMa(percent);
     const int current = currentLaserMa(3);
+
+    if (operatorPowerCurrentInPercentRange(current,
+                                           percent,
+                                           cfg.l3MinPercent,
+                                           cfg.l3MaxPercent,
+                                           cfg.l3MinMa,
+                                           cfg.l3MaxMa,
+                                           cfg.l3StepMa)) {
+        return true;
+    }
+
     const int direction = (target > current) ? +1 : (target < current ? -1 : 0);
 
     if (direction == 0) {
@@ -1303,48 +1426,73 @@ bool LaserController::requestOperatorPowerPercent(int percent, QString *reason)
     return ok;
 }
 
-bool LaserController::sendLaserCommand(int laserIndex, char cmd)
+// ===== STM32 v1.3 text frame protocol helpers =====
+uint8_t LaserController::calcChecksum(char cmd)
 {
-    if (laserIndex < 1 || laserIndex > 3) return false;
+    // Matches STM32 CalcTextChecksum: sum of ASCII values of the command string,
+    // AND with 0xFF. For single-char commands, this equals ASCII(cmd).
+    return static_cast<uint8_t>(cmd);
+}
+
+QByteArray LaserController::buildTextFrame(char cmd)
+{
+    // Format: <CMD=X,CHK=YY>
+    // Example: <CMD=1,CHK=31>  or  <CMD=D,CHK=44>
+    // STM32 sscanf uses %2x (case-insensitive), but we use uppercase to match STM32 examples.
+    char buf[16];
+    int len = std::snprintf(buf, sizeof(buf), "<CMD=%c,CHK=%02X>", cmd, calcChecksum(cmd));
+    return QByteArray(buf, len);
+}
+
+LaserController::SendResult LaserController::sendLaserCommand(int laserIndex, char cmd)
+{
+    if (laserIndex < 1 || laserIndex > 3) return SendResult::Error;
 
     int direction = commandDirectionForLaser(laserIndex, cmd);
     if (direction == 0) {
         emit logMessage(QString::fromUtf8(u8"[WARN] Laser%1 无效命令：%2").arg(laserIndex).arg(QChar(cmd)));
-        return false;
+        return SendResult::Error;
     }
 
     // 控制核心是最后防线：所有界面请求到这里都必须再过一次方向联锁。
     if (!canAdjustLaser(laserIndex, direction)) {
         emit logMessage(QString::fromUtf8(u8"[WARN] Laser%1 未发送：%2")
                         .arg(laserIndex).arg(adjustBlockReason(laserIndex, direction)));
-        return false;
+        return SendResult::Error;
     }
 
 #ifdef DEBUG_MODE
-    emit logMessage(QString::fromUtf8(u8"[DEBUG:SEND] Laser%1 -> %2 (模拟)").arg(laserIndex).arg(QChar(cmd)));
+    {
+        const QByteArray debugFrame = buildTextFrame(cmd);
+        emit logMessage(QString::fromUtf8(u8"[DEBUG:SEND] Laser%1 -> %2 (模拟: %3)")
+            .arg(laserIndex).arg(QChar(cmd)).arg(QString::fromLatin1(debugFrame)));
+    }
     updateLaserStatusFromSend(laserIndex);
-    return true;
+    return SendResult::Sent;
 #else
     if (!serialPort || !serialPort->isOpen()) {
         emit logMessage(QString::fromUtf8(u8"[WARN] 串口未打开，未发送命令"));
-        return false;
+        return SendResult::Error;
+    }
+    if (commandAckPending[laserIndex - 1]) {
+        return SendResult::RateLimited;
     }
     const bool rampControlledSend = isLaserBusy(laserIndex);
     if (!rampControlledSend
         && lastSentTimers[laserIndex - 1].isValid()
         && lastSentTimers[laserIndex - 1].elapsed() < minSendIntervalMs) {
-        return false;
+        return SendResult::RateLimited;
     }
 
     // 全局硬限速覆盖手动、ramp、TRY 和跨通道发送，避免三路叠加后超过下位机可承受的 15Hz。
     if (globalSendTimer.isValid()
         && globalSendTimer.elapsed() < kMinGlobalSendIntervalMs) {
-        return false;
+        return SendResult::RateLimited;
     }
 
-    QByteArray data(1, cmd);
+    QByteArray data = buildTextFrame(cmd);
     qint64 bytesWritten = serialPort->write(data);
-    if (bytesWritten == -1) {
+    if (bytesWritten != data.size()) {
         emit logMessage(QString::fromUtf8(u8"[ERROR] 发送命令失败: ") + serialPort->errorString());
         if (serialPort->error() == QSerialPort::ResourceError
             || serialPort->error() == QSerialPort::WriteError) {
@@ -1353,14 +1501,16 @@ bool LaserController::sendLaserCommand(int laserIndex, char cmd)
             autoReconnectTimer->start(2000);
             emit transportChanged(false, QString());
         }
-        return false;
+        return SendResult::Error;
     }
 
     lastSentTimers[laserIndex - 1].restart();
     globalSendTimer.restart();
-    emit logMessage(QString::fromUtf8(u8"[SEND] Laser%1 -> %2").arg(laserIndex).arg(QChar(cmd)));
+    commandAckPending[laserIndex - 1] = true;
+    emit logMessage(QString::fromUtf8(u8"[SEND] Laser%1 -> %2 (%3)")
+        .arg(laserIndex).arg(QChar(cmd)).arg(QString::fromLatin1(data)));
     updateLaserStatusFromSend(laserIndex);
-    return true;
+    return SendResult::Sent;
 #endif
 }
 
@@ -1404,35 +1554,59 @@ void LaserController::serialPortReadyRead()
 
         emit logMessage(line);
 
+        if (line.startsWith(QStringLiteral("ERROR:"), Qt::CaseInsensitive)) {
+            clearAllPendingCommands();
+            if (isAnyLaserBusy()) {
+                finishRamp(false, line);
+            }
+            continue;
+        }
+
         QString cleaned = line;
         cleaned.remove('\r');
         cleaned.replace("\n", "");
         cleaned.replace(" ", "");
 
         bool changed = false;
-        if (cleaned.contains(QString::fromUtf8(u8"Laser1:温度就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser1就绪")) ||
-            cleaned.toLower().contains("laser1ready") || cleaned.contains("L1:OK")) {
+
+        // --- Async temperature state messages (STM32 v1.3) ---
+        // STM32 output: "Laser1 temp state -> READY\r\n" → after space removal: "Laser1tempstate->READY"
+        if (cleaned.contains(QStringLiteral("Laser1tempstate->READY"))) {
             if (!laser1RawReady) { laser1RawReady = true; changed = true; }
-        } else if (cleaned.contains(QString::fromUtf8(u8"Laser1:温度未就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser1未就绪")) ||
-                   cleaned.toLower().contains("laser1notready") || cleaned.contains("L1:NG")) {
+        } else if (cleaned.contains(QStringLiteral("Laser1tempstate->NOT_READY"))) {
             if (laser1RawReady) { laser1RawReady = false; changed = true; }
         }
-        if (cleaned.contains(QString::fromUtf8(u8"Laser2:温度就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser2就绪")) ||
-            cleaned.toLower().contains("laser2ready") || cleaned.contains("L2:OK")) {
+
+        if (cleaned.contains(QStringLiteral("Laser2tempstate->READY"))) {
             if (!laser2RawReady) { laser2RawReady = true; changed = true; }
-        } else if (cleaned.contains(QString::fromUtf8(u8"Laser2:温度未就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser2未就绪")) ||
-                   cleaned.toLower().contains("laser2notready") || cleaned.contains("L2:NG")) {
+        } else if (cleaned.contains(QStringLiteral("Laser2tempstate->NOT_READY"))) {
             if (laser2RawReady) { laser2RawReady = false; changed = true; }
         }
-        if (cleaned.contains(QString::fromUtf8(u8"Laser3:温度就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser3就绪")) ||
-            cleaned.toLower().contains("laser3ready") || cleaned.contains("L3:OK")) {
+
+        // --- Readiness from status query responses (STM32 v1.3) ---
+        // STM32 output: "[Laser1] READY=YES ENABLE=ON ..." → after space removal: "[Laser1]READY=YESENABLE=ON..."
+        if (cleaned.contains(QStringLiteral("[Laser1]READY=YES"))) {
+            if (!laser1RawReady) { laser1RawReady = true; changed = true; }
+        } else if (cleaned.contains(QStringLiteral("[Laser1]READY=NO"))) {
+            if (laser1RawReady) { laser1RawReady = false; changed = true; }
+        }
+
+        if (cleaned.contains(QStringLiteral("[Laser2]READY=YES"))) {
+            if (!laser2RawReady) { laser2RawReady = true; changed = true; }
+        } else if (cleaned.contains(QStringLiteral("[Laser2]READY=NO"))) {
+            if (laser2RawReady) { laser2RawReady = false; changed = true; }
+        }
+
+        // L3 temp GPIO (PB15) is commented out in STM32 v1.3; temp_status_prev3 is hardcoded to 1.
+        // "[Laser3] READY=YES" will always be the response; parsing it for forward compatibility.
+        if (cleaned.contains(QStringLiteral("[Laser3]READY=YES"))) {
             if (!laser3RawReady) { laser3RawReady = true; changed = true; }
-        } else if (cleaned.contains(QString::fromUtf8(u8"Laser3:温度未就绪")) || cleaned.contains(QString::fromUtf8(u8"Laser3未就绪")) ||
-                   cleaned.toLower().contains("laser3notready") || cleaned.contains("L3:NG")) {
+        } else if (cleaned.contains(QStringLiteral("[Laser3]READY=NO"))) {
             if (laser3RawReady) { laser3RawReady = false; changed = true; }
         }
 
         if (changed) updateLaserDependencies();
+        parseSetpointFromLine(line);
         parseMeasuredFromLine(line);
     }
 }
@@ -1453,7 +1627,7 @@ void LaserController::handleSerialError(QSerialPort::SerialPortError error)
 void LaserController::checkSerialPorts()
 {
 #ifdef DEBUG_MODE
-    emit transportChanged(true, QStringLiteral("DEBUG"));
+    emit transportChanged(wasOpenedBefore, wasOpenedBefore ? QStringLiteral("DEBUG") : QString());
     return;
 #else
     QStringList currentPorts = availablePortNames();
@@ -1497,6 +1671,21 @@ void LaserController::autoReconnectSerialPort()
 void LaserController::checkLaserStatus()
 {
     if (!hasLaserTransport()) return;
+
+#ifndef DEBUG_MODE
+    // Periodic idle query: when no ramp is active and we haven't sent anything for
+    // at least 3 seconds, send a full status query to keep measured values and
+    // readiness fresh. The globalSendTimer restart in sendStatusQuery prevents
+    // sending more than one query per checkLaserStatus cycle.
+    if (!isAnyLaserBusy()
+        && (!globalSendTimer.isValid() || globalSendTimer.elapsed() >= 3000)) {
+        const SendResult result = queryAllLaserStatus();
+        if (result == SendResult::Error) {
+            emit logMessage(QString::fromUtf8(u8"[WARN] 状态查询未发送"));
+        }
+    }
+#endif
+
     updateLaserDependencies();
 }
 
@@ -1512,17 +1701,243 @@ QString LaserController::decodeSerialData(const QByteArray &data) const
 
 void LaserController::parseMeasuredFromLine(const QString &line)
 {
-    QRegularExpression re(QString::fromUtf8(u8"Laser([123])[^\\n]*?输出电流\\s*=\\s*([0-9]+\\.?[0-9]*)\\s*A"));
+    // Match STM32 v1.3 status response FB_I field:
+    //   [Laser1] ... FB_I=0.098A
+    //   [Laser2] ... FB_I=0.460A
+    //   [Laser3] ... FB_I=5.000A
+    // FB_I value is in Amps; multiply by 1000 to get mA.
+    static const QRegularExpression re(
+        QStringLiteral(R"(\[Laser(\d)\].*FB_I=(\d+\.?\d*)A)"));
+
     QRegularExpressionMatch match = re.match(line);
     if (!match.hasMatch()) return;
 
-    int index = match.captured(1).toInt();
-    double mA = match.captured(2).toDouble() * 1000.0;
+    bool ok = false;
+    int index = match.captured(1).toInt(&ok);
+    if (!ok || index < 1 || index > 3) return;
+
+    double amps = match.captured(2).toDouble(&ok);
+    if (!ok) return;
+
+    double mA = amps * 1000.0;
     setMeasuredLaserMa(index, mA);
+}
+
+void LaserController::parseSetpointFromLine(const QString &line)
+{
+    // Match STM32 v1.3 status response SET_I field:
+    //   [Laser1] ... SET_I=0.098A
+    // SET_I is the current command setpoint calculated by STM32 from DAC.
+    static const QRegularExpression re(
+        QStringLiteral(R"(\[Laser([123])\].*SET_I=([0-9]+(?:\.[0-9]+)?)A)"));
+
+    const QRegularExpressionMatch match = re.match(line);
+    if (!match.hasMatch()) return;
+
+    bool ok = false;
+    const int index = match.captured(1).toInt(&ok);
+    if (!ok || index < 1 || index > 3) return;
+
+    const double amps = match.captured(2).toDouble(&ok);
+    if (!ok) return;
+
+    const int mA = qRound(amps * 1000.0);
+    setCurrentLaserMa(index, mA);
+    clearPendingCommand(index);
+    markLowerDeviceStatusReceived(index);
+
+    if (isAnyLaserBusy() && index == rampLaserIndex) {
+        emit operationProgress(index, currentLaserMa(index), rampTargetMa);
+        bool targetReached = currentLaserMa(index) == rampTargetMa;
+        if (!targetReached && index == 3 && rampDirection != 0) {
+            const int toleranceMa = laser3RampSettleToleranceMa(cfg.l3StepMa);
+            targetReached = (rampDirection > 0 && currentLaserMa(index) >= rampTargetMa - toleranceMa)
+                    || (rampDirection < 0 && currentLaserMa(index) <= rampTargetMa + toleranceMa);
+        }
+        if (targetReached) {
+            finishRamp(true, QString::fromUtf8(u8"已到达目标电流"));
+        }
+    }
+}
+
+// ===== STM32 v1.3 status query commands =====
+LaserController::SendResult LaserController::sendStatusQuery(char cmd)
+{
+    if (cmd != 'A' && cmd != 'B' && cmd != 'C' && cmd != 'D') return SendResult::Error;
+
+#ifdef DEBUG_MODE
+    {
+        const QByteArray frame = buildTextFrame(cmd);
+        emit logMessage(QString::fromUtf8(u8"[DEBUG:QUERY] %1 (模拟)")
+            .arg(QString::fromLatin1(frame)));
+    }
+    QTimer::singleShot(kInitialStatusQueryRetryDelayMs, this, [this, cmd]() {
+        simulateDebugStatusQueryResponse(cmd);
+    });
+    return SendResult::Sent;
+#else
+    if (!serialPort || !serialPort->isOpen()) return SendResult::Error;
+
+    // Respect global rate limit to avoid competing with ramp/TRY commands.
+    if (globalSendTimer.isValid()
+        && globalSendTimer.elapsed() < kMinGlobalSendIntervalMs) {
+        return SendResult::RateLimited;
+    }
+
+    QByteArray data = buildTextFrame(cmd);
+    qint64 bytesWritten = serialPort->write(data);
+    if (bytesWritten != data.size()) {
+        emit logMessage(QString::fromUtf8(u8"[ERROR] 状态查询发送失败: ")
+            + serialPort->errorString());
+        return SendResult::Error;
+    }
+    globalSendTimer.restart();
+    emit logMessage(QString::fromUtf8(u8"[QUERY] -> %1")
+        .arg(QString::fromLatin1(data)));
+    return SendResult::Sent;
+#endif
+}
+
+LaserController::SendResult LaserController::queryAllLaserStatus()
+{
+    return sendStatusQuery('D');
+}
+
+LaserController::SendResult LaserController::queryLaserStatus(int laserIndex)
+{
+    char cmd = 0;
+    switch (laserIndex) {
+    case 1: cmd = 'A'; break;
+    case 2: cmd = 'B'; break;
+    case 3: cmd = 'C'; break;
+    default: return SendResult::Error;
+    }
+    return sendStatusQuery(cmd);
+}
+
+void LaserController::simulateDebugStatusQueryResponse(char cmd)
+{
+#ifdef DEBUG_MODE
+    auto emitStatus = [this](int laserIndex) {
+        setRawReady(laserIndex, true);
+
+        const double setA = currentLaserMa(laserIndex) / 1000.0;
+        const double fbA = measuredLaserMa(laserIndex) >= 0
+                ? measuredLaserMa(laserIndex) / 1000.0
+                : setA;
+        const QString line = QStringLiteral("[Laser%1] READY=YES ENABLE=ON DAC=0 DAC_V=0.000V SET_I=%2A FB_I=%3A")
+                .arg(laserIndex)
+                .arg(setA, 0, 'f', 3)
+                .arg(fbA, 0, 'f', 3);
+
+        emit logMessage(QString::fromUtf8(u8"[DEBUG:RECV] ") + line);
+        parseSetpointFromLine(line);
+        parseMeasuredFromLine(line);
+    };
+
+    switch (cmd) {
+    case 'A':
+        emitStatus(1);
+        break;
+    case 'B':
+        emitStatus(2);
+        break;
+    case 'C':
+        emitStatus(3);
+        break;
+    case 'D':
+        emitStatus(1);
+        emitStatus(2);
+        emitStatus(3);
+        break;
+    default:
+        return;
+    }
+    updateLaserDependencies();
+#else
+    Q_UNUSED(cmd);
+#endif
+}
+
+void LaserController::scheduleInitialStatusQuery()
+{
+    QTimer::singleShot(kInitialStatusQueryDelayMs, this, [this]() {
+        runInitialStatusQuery(1);
+    });
+}
+
+void LaserController::runInitialStatusQuery(int attempt)
+{
+#ifdef DEBUG_MODE
+    Q_UNUSED(attempt);
+    queryAllLaserStatus();
+#else
+    if (!serialPort || !serialPort->isOpen()) {
+        return;
+    }
+
+    const SendResult result = queryAllLaserStatus();
+    if (result == SendResult::Sent) {
+        emit logMessage(QString::fromUtf8(u8"[INFO] 已请求下位机初始状态同步"));
+        return;
+    }
+
+    if (result == SendResult::RateLimited && attempt < kInitialStatusQueryMaxAttempts) {
+        QTimer::singleShot(kInitialStatusQueryRetryDelayMs, this, [this, attempt]() {
+            runInitialStatusQuery(attempt + 1);
+        });
+        return;
+    }
+
+    emit logMessage(QString::fromUtf8(u8"[WARN] 下位机初始状态查询未发送"));
+#endif
+}
+
+void LaserController::beginLowerDeviceStateSync()
+{
+    lowerDeviceStatusMask = 0;
+    setLowerDeviceStateSynchronized(false);
+    emit logMessage(QString::fromUtf8(u8"[INFO] 等待下位机状态同步完成后开放操作权限"));
+}
+
+void LaserController::markLowerDeviceStatusReceived(int laserIndex)
+{
+    if (laserIndex < 1 || laserIndex > 3) return;
+
+    lowerDeviceStatusMask |= (1 << (laserIndex - 1));
+    if (!lowerDeviceStateSynchronized && (lowerDeviceStatusMask & 0x07) == 0x07) {
+        setLowerDeviceStateSynchronized(true);
+        emit logMessage(QString::fromUtf8(u8"[INFO] 下位机状态同步完成，已开放操作权限"));
+    }
+}
+
+void LaserController::setLowerDeviceStateSynchronized(bool synchronized)
+{
+    if (lowerDeviceStateSynchronized == synchronized) return;
+
+    lowerDeviceStateSynchronized = synchronized;
+    emit lowerDeviceStateSyncChanged(synchronized);
+    emit stateChanged();
+}
+
+void LaserController::clearPendingCommand(int laserIndex)
+{
+    if (laserIndex < 1 || laserIndex > 3) return;
+    commandAckPending[laserIndex - 1] = false;
+}
+
+void LaserController::clearAllPendingCommands()
+{
+    for (bool &pending : commandAckPending) {
+        pending = false;
+    }
 }
 
 void LaserController::resetLaserStates()
 {
+    clearAllPendingCommands();
+    lowerDeviceStatusMask = 0;
+    setLowerDeviceStateSynchronized(false);
     laser1RawReady = false;
     laser2RawReady = false;
     laser3RawReady = false;
@@ -1544,9 +1959,18 @@ void LaserController::updateLaserDependencies()
 
 void LaserController::updateLaserStatusFromSend(int laserIndex)
 {
-    // 当前协议会把一次成功发送视为对应激光器“已可控”的辅助依据，保持旧逻辑不变。
-    setRawReady(laserIndex, true);
-    updateLaserDependencies();
+    // With STM32 v1.3 text frame protocol, rawReady is set exclusively from:
+    //   1. Async temperature messages: “LaserN temp state -> READY/NOT_READY”
+    //   2. Status query responses: “[LaserN] READY=YES/NO”
+    //
+    // The old behavior of setting rawReady=true on every successful serial write
+    // is removed because:
+    //   - serialPort->write() succeeding only means bytes entered the OS buffer
+    //   - STM32 may reject the command (temperature not ready, checksum mismatch)
+    //   - This caused false readiness that persists across connection losses
+    //
+    // Readiness is now updated exclusively from parsed STM32 response text.
+    Q_UNUSED(laserIndex);
 }
 
 void LaserController::setCurrentLaserMa(int laserIndex, int value)

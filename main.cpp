@@ -1,5 +1,6 @@
 #include "operatorform.h"
 #include <QApplication>
+#include <QFont>
 #include <QTextCodec>
 
 int main(int argc, char *argv[])
@@ -21,6 +22,9 @@ int main(int argc, char *argv[])
 
     // 设置全局默认编码为 UTF-8，防止中文乱码
     QTextCodec::setCodecForLocale(QTextCodec::codecForName("UTF-8"));
+
+    QFont appFont(QStringLiteral("Microsoft YaHei"));
+    a.setFont(appFont);
 
     operatorForm w;
     w.show();
