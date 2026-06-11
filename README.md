@@ -644,6 +644,10 @@ STATE L3 set=5000 meas=4998.0 ready=1 enabled=1
 - `serialhelper.pro` 中 `QMAKE_POST_LINK` 从多行 `win32 { } else { }` 大括号块改为单行 `win32:` / `!win32:` 条件赋值语法，解决 qmake 解析器在处理嵌套 `$$quote()` 和 `$$shell_path()` 时的 brace 匹配 bug。
 - `HEADERS` 补充缺失的 `ui_operatorform.h`。
 
+**开发者页面 SpinBox 输入防抖**
+- 周期性状态查询（每 3 秒 `D` 查询 + STM32 回包 `SET_I`）会触发 `currentChanged` → SpinBox `setValue()`，覆盖用户正在输入的值。
+- 修复：`currentChanged` 更新 SpinBox 前检查 `hasFocus()`，用户正在编辑时不覆盖。L1/L2/L3 三路 SpinBox 均生效。
+
 ### 2026-06-05
 
 **README 与当前源码结构同步**

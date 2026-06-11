@@ -113,9 +113,12 @@ Widget::Widget(LaserController *sharedController, QWidget *parent) :
         else if (laserIndex == 2) { currentLaser2mA = currentMa; spin = ui->laser2spinbox; chart = chart2; }
         else if (laserIndex == 3) { currentLaser3mA = currentMa; spin = ui->laser3spinbox; chart = chart3; }
         if (spin) {
-            spin->blockSignals(true);
-            spin->setValue(currentMa);
-            spin->blockSignals(false);
+            // 用户正在编辑 SpinBox 时跳过外部更新，避免输入中途被刷掉
+            if (!spin->hasFocus()) {
+                spin->blockSignals(true);
+                spin->setValue(currentMa);
+                spin->blockSignals(false);
+            }
         }
         if (chart) chart->addDataPoint(currentMa);
         updateAllLaserVisuals();

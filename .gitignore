@@ -1,14 +1,36 @@
+# Qt 编译输出目录
 debug/
 release/
 build*/
+
+# Qt Creator 用户配置
 *.user
 *.pro.user
+*.pro.user.*
+
+# Qt 自动生成文件
+moc_*
+qrc_*
+ui_*
+Makefile*
+
+# qmake 缓存
+.qmake.stash
+.qmake.cache
+.qmake.super
+
+# Windows 可执行文件与中间产物
 *.exe
 *.obj
 *.o
 *.dll
 *.pdb
 *.ilk
-Makefile
-.qmake.stash
+*.res
+*.aps
+
+# 编译产物
+*.pdf
+
+# 运行时配置文件（模板在仓库中，运行时不覆盖版本控制）
 laser_config.ini

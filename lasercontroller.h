@@ -11,7 +11,7 @@
 
 // ===== Debug模式宏定义 =====
 // 控制核心也使用同一 Debug 开关，避免界面和控制层对“是否需要真实串口”的理解不一致。
-#define DEBUG_MODE
+//#define DEBUG_MODE
 
 class QTimer;
 
