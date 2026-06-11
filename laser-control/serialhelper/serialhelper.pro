@@ -49,6 +49,7 @@ SOURCES += \
 HEADERS += \
         operatorform.h \
         lasercontroller.h \
+        ui_operatorform.h \
         widget.h \
         laserchart.h \
         pillspinbox.h
@@ -69,3 +70,7 @@ msvc {
 } else {
     QMAKE_CXXFLAGS += -finput-charset=UTF-8 -fexec-charset=UTF-8
 }
+
+# 首次编译时自动将模板配置拷贝到输出目录
+win32:QMAKE_POST_LINK = $$quote(if not exist $$shell_path($$OUT_PWD/laser_config.ini) copy /Y $$shell_path($$PWD/laser_config.ini) $$shell_path($$OUT_PWD/laser_config.ini))
+!win32:QMAKE_POST_LINK = cp -n $$shell_path($$PWD/laser_config.ini) $$shell_path($$OUT_PWD)/laser_config.ini 2>/dev/null; true

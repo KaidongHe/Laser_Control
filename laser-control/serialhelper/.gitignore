@@ -1,0 +1,14 @@
+debug/
+release/
+build*/
+*.user
+*.pro.user
+*.exe
+*.obj
+*.o
+*.dll
+*.pdb
+*.ilk
+Makefile
+.qmake.stash
+laser_config.ini

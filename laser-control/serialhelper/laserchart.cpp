@@ -1,6 +1,7 @@
 #include "laserchart.h"
 #include <QPainter>
 #include <QDateTime>
+#include <QFontMetrics>
 #include <QtMath>
 
 LaserChart::LaserChart(QWidget *parent)
@@ -119,7 +120,12 @@ void LaserChart::paintEvent(QPaintEvent *)
 
     // Y轴单位
     p.setPen(QColor(180, 180, 180));
-    p.drawText(5, 2, 50, 14, Qt::AlignLeft, "mA");
+    const QFontMetrics axisMetrics(axisFont);
+    p.drawText(5, 2,
+               qMax(50, axisMetrics.horizontalAdvance(QStringLiteral("mA")) + 6),
+               axisMetrics.height(),
+               Qt::AlignLeft | Qt::AlignVCenter,
+               QStringLiteral("mA"));
 
     // 阈值线
     if (m_thresholdEnabled && m_threshold > m_yMin && m_threshold < m_yMax) {
@@ -129,7 +135,10 @@ void LaserChart::paintEvent(QPaintEvent *)
         p.setPen(thPen);
         p.drawLine(marginLeft, ty, marginLeft + plotW, ty);
         p.setPen(QColor(255, 120, 120));
-        p.drawText(marginLeft + 4, ty - 12, 80, 12,
+        const int thresholdTextHeight = axisMetrics.height();
+        const int thresholdTextWidth = qMax(1, qMin(plotW - 8, qMax(80, axisMetrics.horizontalAdvance(QString::number(m_threshold)) + 42)));
+        const int thresholdTextY = qBound(marginTop, ty - thresholdTextHeight, marginTop + plotH - thresholdTextHeight);
+        p.drawText(marginLeft + 4, thresholdTextY, thresholdTextWidth, thresholdTextHeight,
                    Qt::AlignLeft | Qt::AlignVCenter,
                    QString("阈值 %1").arg(m_threshold));
     }
@@ -156,7 +165,11 @@ void LaserChart::paintEvent(QPaintEvent *)
         QString label = dt.toString("mm:ss");
         int x = marginLeft + plotW * i / xSteps;
         p.setPen(QColor(180, 180, 180));
-        p.drawText(x - 25, marginTop + plotH + 8, 50, marginBottom - 4, Qt::AlignHCenter, label);
+        const int labelWidth = qMax(50, axisMetrics.horizontalAdvance(label) + 8);
+        p.drawText(x - labelWidth / 2, marginTop + plotH + 8,
+                   labelWidth, marginBottom - 4,
+                   Qt::AlignHCenter | Qt::AlignTop,
+                   label);
     }
 
     p.setClipRect(marginLeft, marginTop, plotW, plotH);
@@ -198,18 +211,20 @@ void LaserChart::paintEvent(QPaintEvent *)
     valFont.setPointSize(8);
     valFont.setBold(true);
     p.setFont(valFont);
+    const QFontMetrics valMetrics(valFont);
+    const int valueLineHeight = valMetrics.height() + 2;
 
     int textY = marginTop + 2;
     if (!m_data.isEmpty()) {
         p.setPen(m_lineColor);
         QString s = QString("设定 %1").arg(int(m_data.last().y()));
-        p.drawText(marginLeft, textY, plotW - 4, 14, Qt::AlignRight, s);
-        textY += 14;
+        p.drawText(marginLeft, textY, plotW - 4, valueLineHeight, Qt::AlignRight | Qt::AlignVCenter, s);
+        textY += valueLineHeight;
     }
     if (!m_measured.isEmpty()) {
         p.setPen(m_measuredColor);
         QString s = QString("实测 %1").arg(m_measured.last().y(), 0, 'f', 0);
-        p.drawText(marginLeft, textY, plotW - 4, 14, Qt::AlignRight, s);
+        p.drawText(marginLeft, textY, plotW - 4, valueLineHeight, Qt::AlignRight | Qt::AlignVCenter, s);
     }
 }
 

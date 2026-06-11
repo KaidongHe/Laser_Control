@@ -34,6 +34,7 @@ private:
     void updateOperatorSerialUi(bool opened, const QString &portName);
     void updateToggleButton(QPushButton *button, bool enabled, const QString &label, bool busy = false);
     void updateOperatorLockState();
+    void updateStatusDisplay();
     void syncPowerSpinBoxFromLaser3();
 
     Ui::operatorForm *ui;
@@ -45,6 +46,7 @@ private:
     bool l1Busy = false;
     bool l2Busy = false;
     bool l3Busy = false;
+    int requestedPowerPercent = -1;
 };
 
 #endif // OPERATORFORM_H

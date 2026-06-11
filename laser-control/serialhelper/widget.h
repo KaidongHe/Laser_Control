@@ -2,10 +2,6 @@
 #define WIDGET_H
 
 #include <QWidget>
-#include <QSerialPort>
-#include <QSerialPortInfo>
-#include <QTextCodec>
-#include <QElapsedTimer>
 #include <QLabel>
 #include <QSpinBox>
 #include <QComboBox>
@@ -27,13 +23,11 @@ public:
     explicit Widget(LaserController *controller = nullptr, QWidget *parent = 0);
     ~Widget();
 
-    void sendLaserCommand(int laserIndex, char cmd);
     void setLaserReady(int laserIndex, bool ready);
 
 private slots:
     void on_openBt_clicked();
     void on_closeBt_clicked();
-    void serialPortReadyRead_Slot();
     void on_sendBt_clicked();
     void on_clearBt_clicked();
 
@@ -56,14 +50,10 @@ private slots:
     void on_laser2spinbox_editingFinished();
     void on_laser3spinbox_editingFinished();
 
-    // 热插拔
-    void checkSerialPorts();
-    void autoReconnectSerialPort();
-    void handleSerialError(QSerialPort::SerialPortError error);
-    void checkLaserStatus();
     void on_laser1ParamsButton_clicked();
     void on_laser2ParamsButton_clicked();
     void on_laser3ParamsButton_clicked();
+    void on_temperatureBypassButton_clicked();
     void on_tryButton_clicked();
     void tryStep();
 
@@ -71,7 +61,6 @@ private:
     Ui::Widget *ui;
     LaserController *controller = nullptr;
     bool ownsController = false;
-    QSerialPort *serialPort;
 
     int currentLaser1mA;
     int currentLaser2mA;
@@ -86,18 +75,6 @@ private:
     bool laser1Coarse = false;
     bool laser2Coarse = true;
 
-    QElapsedTimer lastSentTimers[3];
-    int minSendIntervalMs = 120;
-
-    QByteArray rxBuffer;
-
-    QTimer *serialCheckTimer;
-    QTimer *autoReconnectTimer;
-    QTimer *statusCheckTimer;
-    QString lastOpenedPortName;
-    bool wasOpenedBefore = false;
-    bool autoReconnectEnabled = true;
-
     bool laser1Ready = false;
     bool laser2Ready = false;
     bool laser3Ready = false;
@@ -108,14 +85,12 @@ private:
 
     // TRY扫描
     QTimer *tryTimer;
+    QTimer *visualRefreshTimer = nullptr; // 合并同一轮事件循环内的多次界面刷新，减少扫描时按钮重绘闪烁
     enum TryState {
         TryIdle,
         TryPhase1,
         TryPhase2,
         TryPhase3,
-        TryPhaseL2Start1,
-        TryPhaseL2Start2,
-        TryPhaseL2Start3,
         TryPhaseL2,
         TryPhaseL3
     };
@@ -130,18 +105,10 @@ private:
     int tryL1HighCurrent = 850;
     int tryL1MiddleCurrent = 200;
     int tryFinalCurrent = 98;
-    // L2 启动曲线和普通操作员页面共用；完成后才进入 L2 额外扫描目标。
-    int tryL2HighCurrent = 850;
-    int tryL2MiddleCurrent = 200;
-    int tryL2FinalCurrent = LaserController::L2_ENABLE_L3_MA;
-    int tryL2Phase1TimeSec = 40;
-    int tryL2Phase2TimeSec = 15;
-    int tryL2Phase3TimeSec = 5;
-    int tryL2StartupStepSize = 10;
-    // L2 扫描参数
+    // L2 单段缓升参数（操作员启动和 TRY 共用同一组参数）
     int tryL2TargetMA = 460;       // L2 终点电流
     int tryL2StepSize = 10;        // L2 步长
-    int tryL2TimeSec = 30;         // L2 扫描时长
+    int tryL2TimeSec = 30;         // L2 缓升时长
     // L3 扫描参数（硬件单步约 100 mA）
     int tryL3TargetMA = 5000;      // L3 终点电流
     int tryL3StepSize = 100;       // L3 步长（硬件最小）
@@ -151,32 +118,24 @@ private:
     LaserChart *chart2;
     LaserChart *chart3;
 
-    QString decodeSerialData(const QByteArray &data);
     void refreshSerialPortList();
-    bool isTargetPort(const QString &portName);
     void resetLaserStates();
-    void updateLaserDependencies();
-    bool canControlLaser(int laserIndex);
     bool canAdjustLaser(int laserIndex, int direction) const;       // 按升高/降低方向判断顺序联锁
-    void updateAllLaserStates();
-    void updateLaserStatusFromSend(int laserIndex);
-    void tryAutoActivateLasers();
 
     // ===== 新增：可视化辅助 =====
     void adjustLaser(int laserIndex, int direction);   // +1 / -1
     void updateLaserVisual(int laserIndex);            // 刷新读数、按钮可用、提示
     void updateAllLaserVisuals();                      // 三路联锁互相影响，电流变化后统一刷新全部按钮和提示
     void setLaser1Mode(bool coarse);
+    void doUpdateAllLaserVisuals();                    // 定时器真正执行的刷新入口，避免一次串口/ramp 信号触发多次重绘
     void setLaser2Mode(bool coarse);
     void applyDeveloperRuntimeParams(const LaserController::DeveloperRuntimeParams &params);
     bool canEditDeveloperParams() const;
     bool saveLaserParamsFromDialog(int laserIndex, const LaserController::DeveloperRuntimeParams &params);
-    void parseMeasuredFromLine(const QString &line);
+    void updateTemperatureBypassUi();
     QString blockReason(int laserIndex) const;
     QString adjustBlockReason(int laserIndex, int direction) const; // 返回更具体的顺序联锁阻塞原因
     bool hasLaserTransport() const;                                 // Debug 模式下模拟串口可用，真实模式下检查串口
-    bool laserReadyForStartup(int laserIndex) const;                // Debug 模式下忽略就绪信号，真实模式下读取原始就绪状态
-    int commandDirectionForLaser(int laserIndex, char cmd) const;   // 从单字节命令反推出升高/降低方向
 };
 
 #endif // WIDGET_H

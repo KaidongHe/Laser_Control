@@ -2,13 +2,16 @@
 #define LASERCONTROLLER_H
 
 #include <QObject>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QSerialPort>
 #include <QStringList>
 
+#include <cstdint>
+
 // ===== Debug模式宏定义 =====
 // 控制核心也使用同一 Debug 开关，避免界面和控制层对“是否需要真实串口”的理解不一致。
-//#define DEBUG_MODE
+#define DEBUG_MODE
 
 class QTimer;
 
@@ -29,7 +32,7 @@ public:
     struct DeveloperRuntimeParams
     {
         int operatorL1FinalMa = 98;
-        int operatorL2FinalMa = L2_ENABLE_L3_MA;
+        int operatorL2FinalMa = 460;
         int l3OperatorMaxMa = 5000;
 
         int startupL1HighMa = 850;
@@ -38,12 +41,8 @@ public:
         int startupL1Phase2TimeSec = 90;
         int startupL1Phase3TimeSec = 90;
         int startupL1StepMa = 1;
-        int startupL2HighMa = 850;
-        int startupL2MiddleMa = 200;
-        int startupL2Phase1TimeSec = 40;
-        int startupL2Phase2TimeSec = 15;
-        int startupL2Phase3TimeSec = 5;
         int startupL2StepMa = 10;
+        int startupL2Phase1TimeSec = 30;   // L2 单段缓升总时长
 
         // L1 TRY 启动参数已经统一到 startupL1*，保留这些字段用于兼容旧界面变量。
         int tryL1Phase1TimeSec = 90;
@@ -72,6 +71,7 @@ public:
     bool laserRawReady(int laserIndex) const;
     bool isLaserBusy(int laserIndex) const;
     bool isAnyLaserBusy() const;
+    bool isLowerDeviceStateSynchronized() const;
 
     bool canAdjustLaser(int laserIndex, int direction) const;
     QString adjustBlockReason(int laserIndex, int direction) const;
@@ -87,14 +87,18 @@ public:
     int laserStepMa(int laserIndex, bool coarseMode) const;
     int operatorPowerMinPercent() const;
     int operatorPowerMaxPercent() const;
+    int operatorPowerPercentStep() const;
     int operatorPowerPercentToMa(int percent) const;
     int operatorPowerMaToPercent(int currentMa) const;
+    bool operatorPowerMaMatchesPercent(int currentMa, int percent) const;
+    bool temperatureReadyBypassEnabled() const;
     DeveloperRuntimeParams developerRuntimeParams() const;
 
     bool adjustLaser(int laserIndex, int direction, bool coarseMode);
     bool setLaserTarget(int laserIndex, int target, bool coarseMode, int durationMs = -1);
     bool requestOperatorSwitch(int laserIndex, bool on, QString *reason = nullptr);
     bool requestOperatorPowerPercent(int percent, QString *reason = nullptr);
+    bool setTemperatureReadyBypassEnabled(bool enabled, QString *error = nullptr);
     bool saveDeveloperLaserParameters(int laserIndex, const DeveloperRuntimeParams &params, QString *error = nullptr);
 
 signals:
@@ -104,6 +108,7 @@ signals:
     void readyChanged(int laserIndex, bool ready, bool rawReady);
     void stateChanged();
     void transportChanged(bool opened, const QString &portName);
+    void lowerDeviceStateSyncChanged(bool synchronized);
     void busyChanged(int laserIndex, bool busy);
     void operationStarted(int laserIndex, int targetMa);
     void operationProgress(int laserIndex, int currentMa, int targetMa);
@@ -118,7 +123,12 @@ private slots:
     void processRampStep();
 
 private:
-    bool sendLaserCommand(int laserIndex, char cmd);
+    enum class SendResult {
+        Sent,
+        RateLimited,
+        Error
+    };
+    SendResult sendLaserCommand(int laserIndex, char cmd);
     bool startRampToTarget(int laserIndex, int target, bool coarseMode, int durationMs = -1);
     bool startOperatorSoftOn(int laserIndex);
     bool continueOperatorSoftOn(int finishedLaser);
@@ -146,6 +156,22 @@ private:
     void updateLaserDependencies();
     void updateLaserStatusFromSend(int laserIndex);
     void setCurrentLaserMa(int laserIndex, int value);
+
+    // STM32 v1.3 text frame protocol helpers
+    static QByteArray buildTextFrame(char cmd);
+    static uint8_t calcChecksum(char cmd);
+    SendResult sendStatusQuery(char cmd);
+    SendResult queryAllLaserStatus();
+    SendResult queryLaserStatus(int laserIndex);
+    void scheduleInitialStatusQuery();
+    void runInitialStatusQuery(int attempt);
+    void simulateDebugStatusQueryResponse(char cmd);
+    void parseSetpointFromLine(const QString &line);
+    void beginLowerDeviceStateSync();
+    void markLowerDeviceStatusReceived(int laserIndex);
+    void setLowerDeviceStateSynchronized(bool synchronized);
+    void clearPendingCommand(int laserIndex);
+    void clearAllPendingCommands();
     void setMeasuredLaserMa(int laserIndex, double value);
     void setRawReady(int laserIndex, bool ready);
     void emitAllReadyStates();
@@ -176,8 +202,8 @@ private:
 
         int startupL2HighMa = 850;
         int startupL2MiddleMa = 200;
-        int startupL2FinalMa = L2_ENABLE_L3_MA;
-        int startupL2RiseDurationMs = 40000;
+        int startupL2FinalMa = 460;
+        int startupL2RiseDurationMs = 30000;
         int startupL2FallMiddleDurationMs = 15000;
         int startupL2FallFinalDurationMs = 5000;
         int startupL2StepMa = 10;
@@ -193,9 +219,10 @@ private:
         int l3MinMa = L3_SAFE_OFF_MA;
         int l3MaxMa = 5000;
 
-        int defaultRampIntervalMs = 150;
-        int minRampIntervalMs = 1;
-        int minManualSendIntervalMs = 120;
+        int defaultRampIntervalMs = 67;
+        int minRampIntervalMs = 67;
+        int minManualSendIntervalMs = 67;
+        bool temperatureReadyBypass = false;
 
         int tryL1Phase1TimeSec = 90;
         int tryL1Phase2TimeSec = 90;
@@ -227,14 +254,19 @@ private:
     bool laser1Ready = false;
     bool laser2Ready = false;
     bool laser3Ready = false;
+    bool lowerDeviceStateSynchronized = false;
+    int lowerDeviceStatusMask = 0;
 
     QElapsedTimer lastSentTimers[3];
+    QElapsedTimer globalSendTimer; // 全局串口发送硬限速：任意两条真实命令之间至少间隔约 67ms，避免跨通道叠加超 15Hz
+    bool commandAckPending[3] = {false, false, false};
     int minSendIntervalMs = 120;
-    int rampIntervalMs = 150;
+    int rampIntervalMs = 100;
     QByteArray rxBuffer;
 
     int rampLaserIndex = 0;
     int rampTargetMa = 0;
+    int rampDirection = 0;
     bool rampCoarseMode = true;
 
     enum OperatorSoftPhase {
