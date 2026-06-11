@@ -1,0 +1,835 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Widget</class>
+ <widget class="QWidget" name="Widget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1180</width>
+    <height>832</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <family>Arial</family>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>激光器控制系统</string>
+  </property>
+  <property name="styleSheet">
+   <string>QWidget { background-color: #1a1a1a; color: #E0E0E0; }
+QPushButton { background-color: #444444; color: #E0E0E0; border: 1px solid #555555; border-radius: 3px; padding: 4px 12px; font-weight: bold; }
+QPushButton:hover { background-color: #CC5500; color: white; }
+QPushButton:disabled { background-color: #2a2a2a; color: #666666; border-color: #333333; }
+QGroupBox { color: #FFFFFF; border: 1px solid #555555; border-radius: 5px; margin-top: 10px; padding-top: 16px; font-weight: bold; }
+QGroupBox::title { subcontrol-origin: margin; left: 12px; padding: 0 6px; }
+QGroupBox#card1 { border: 1px solid #00C8FF; }
+QGroupBox#card2 { border: 1px solid #FFA040; }
+QGroupBox#card3 { border: 1px solid #C080FF; }
+QGroupBox#card1::title { color: #00C8FF; }
+QGroupBox#card2::title { color: #FFA040; }
+QGroupBox#card3::title { color: #C080FF; }
+QComboBox { background-color: #333333; color: #E0E0E0; border: 1px solid #555555; padding: 2px 6px; }
+QSpinBox { background-color: #333333; color: #E0E0E0; border: 1px solid #555555; padding: 2px; }
+QPlainTextEdit { background-color: #111111; color: #00CC66; border: 1px solid #555555; }
+QLabel { color: #CCCCCC; }
+QLabel#bigCurrent1 { color: #00C8FF; font-size: 28px; font-weight: bold; }
+QLabel#bigCurrent2 { color: #FFA040; font-size: 28px; font-weight: bold; }
+QLabel#bigCurrent3 { color: #C080FF; font-size: 28px; font-weight: bold; }
+QLabel#measuredLabel1, QLabel#measuredLabel2, QLabel#measuredLabel3 { color: #FFC840; font-size: 11px; }
+QLabel#reasonLabel1, QLabel#reasonLabel2, QLabel#reasonLabel3 { color: #FF6060; font-size: 11px; font-style: italic; }
+QLabel#ledLabel1, QLabel#ledLabel2, QLabel#ledLabel3 { font-size: 18px; font-weight: bold; }
+QLabel#developerTemperatureBypassWarningLabel { color: #FFDFA3; background-color: #3A2A12; border: 1px solid #D69A1E; border-radius: 4px; padding: 5px 10px; font-size: 12px; font-weight: bold; }
+QPushButton#tryButton { background-color: #2196F3; }
+QPushButton#tryButton:hover { background-color: #CC5500; }</string>
+  </property>
+  <layout class="QVBoxLayout" name="rootLayout">
+   <property name="spacing">
+    <number>6</number>
+   </property>
+   <property name="leftMargin">
+    <number>8</number>
+   </property>
+   <property name="topMargin">
+    <number>8</number>
+   </property>
+   <property name="rightMargin">
+    <number>8</number>
+   </property>
+   <property name="bottomMargin">
+    <number>8</number>
+   </property>
+   <item>
+    <widget class="QWidget" name="titleBar" native="true">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="card1">
+     <property name="title">
+      <string>激光器 1</string>
+     </property>
+     <layout class="QHBoxLayout" name="card1Layout">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <widget class="LaserChart" name="chartWidget1" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>180</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="ctrl1Wrap" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>320</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>360</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <layout class="QVBoxLayout" name="ctrl1Layout">
+         <property name="spacing">
+          <number>4</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="status1Row">
+           <item>
+            <widget class="QLabel" name="ledLabel1">
+             <property name="styleSheet">
+              <string>color: #FF4040;</string>
+             </property>
+             <property name="text">
+              <string>●</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="laser1StatusLabel">
+             <property name="text">
+              <string>未就绪</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="s1">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="big1Row">
+           <item>
+            <widget class="QLabel" name="bigCurrent1">
+             <property name="text">
+              <string>0</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="unit1">
+             <property name="styleSheet">
+              <string>font-size:14px;</string>
+             </property>
+             <property name="text">
+              <string>mA</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="measuredLabel1">
+           <property name="text">
+            <string>实测: --</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="step1Row">
+           <item>
+            <widget class="QPushButton" name="laser1DownBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>−</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="laser1spinbox">
+             <property name="alignment">
+              <set>Qt::AlignHCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser1UpBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>＋</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="mode1Row">
+           <item>
+            <widget class="QLabel" name="mode1Title">
+             <property name="text">
+              <string>模式</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser1CoarseBtn">
+             <property name="text">
+              <string>粗调 ±10</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser1FineBtn">
+             <property name="text">
+              <string>细调 ±1</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser1ParamsButton">
+             <property name="text">
+              <string>参数</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="laser1ModeCb">
+             <property name="visible">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="reasonLabel1">
+           <property name="text">
+            <string/>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="vs1">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>10</width>
+             <height>10</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="card2">
+     <property name="title">
+      <string>激光器 2</string>
+     </property>
+     <layout class="QHBoxLayout" name="card2Layout">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <widget class="LaserChart" name="chartWidget2" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>180</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="ctrl2Wrap" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>320</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>360</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <layout class="QVBoxLayout" name="ctrl2Layout">
+         <property name="spacing">
+          <number>4</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="status2Row">
+           <item>
+            <widget class="QLabel" name="ledLabel2">
+             <property name="styleSheet">
+              <string>color: #FF4040;</string>
+             </property>
+             <property name="text">
+              <string>●</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="laser2StatusLabel">
+             <property name="text">
+              <string>未就绪</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="s2">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="big2Row">
+           <item>
+            <widget class="QLabel" name="bigCurrent2">
+             <property name="text">
+              <string>0</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="unit2">
+             <property name="styleSheet">
+              <string>font-size:14px;</string>
+             </property>
+             <property name="text">
+              <string>mA</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="measuredLabel2">
+           <property name="text">
+            <string>实测: --</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="step2Row">
+           <item>
+            <widget class="QPushButton" name="laser2DownBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>−</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="laser2spinbox">
+             <property name="alignment">
+              <set>Qt::AlignHCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser2UpBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>＋</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="mode2Row">
+           <item>
+            <widget class="QLabel" name="mode2Title">
+             <property name="text">
+              <string>模式</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser2CoarseBtn">
+             <property name="text">
+              <string>粗调 ±10</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser2FineBtn">
+             <property name="text">
+              <string>细调 ±1</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser2ParamsButton">
+             <property name="text">
+              <string>参数</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="laser2ModeCb">
+             <property name="visible">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="reasonLabel2">
+           <property name="text">
+            <string/>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="vs2">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>10</width>
+             <height>10</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="card3">
+     <property name="title">
+      <string>激光器 3</string>
+     </property>
+     <layout class="QHBoxLayout" name="card3Layout">
+      <property name="spacing">
+       <number>8</number>
+      </property>
+      <item>
+       <widget class="LaserChart" name="chartWidget3" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>180</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QWidget" name="ctrl3Wrap" native="true">
+        <property name="minimumSize">
+         <size>
+          <width>320</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>360</width>
+          <height>16777215</height>
+         </size>
+        </property>
+        <layout class="QVBoxLayout" name="ctrl3Layout">
+         <property name="spacing">
+          <number>4</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="status3Row">
+           <item>
+            <widget class="QLabel" name="ledLabel3">
+             <property name="styleSheet">
+              <string>color: #FF4040;</string>
+             </property>
+             <property name="text">
+              <string>●</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="laser3StatusLabel">
+             <property name="text">
+              <string>未就绪</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="s3">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="big3Row">
+           <item>
+            <widget class="QLabel" name="bigCurrent3">
+             <property name="text">
+              <string>800</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="unit3">
+             <property name="styleSheet">
+              <string>font-size:14px;</string>
+             </property>
+             <property name="text">
+              <string>mA</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="measuredLabel3">
+           <property name="text">
+            <string>实测: --</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="step3Row">
+           <item>
+            <widget class="QPushButton" name="laser3DownBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>−</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="laser3spinbox">
+             <property name="alignment">
+              <set>Qt::AlignHCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser3UpBtn">
+             <property name="minimumSize">
+              <size>
+               <width>40</width>
+               <height>32</height>
+              </size>
+             </property>
+             <property name="text">
+              <string>＋</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="mode3Row">
+           <item>
+            <widget class="QLabel" name="mode3Title">
+             <property name="text">
+              <string>步长 100 mA</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="s3b">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>10</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+           <item>
+            <widget class="QPushButton" name="laser3ParamsButton">
+             <property name="text">
+              <string>参数</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="laser3ModeCb">
+             <property name="visible">
+              <bool>false</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="reasonLabel3">
+           <property name="text">
+            <string/>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="vs3">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>10</width>
+             <height>10</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPlainTextEdit" name="receiveEdit">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>70</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>90</height>
+      </size>
+     </property>
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="developerTemperatureBypassWarningLabel">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>温度旁路已开启：上位机未验证温度就绪，最终保护依赖下位机</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="serialRow">
+     <item>
+      <spacer name="sp1">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>串口号</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="serialCb"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="openBt">
+       <property name="text">
+        <string>打开串口</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="closeBt">
+       <property name="text">
+        <string>关闭串口</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="clearBt">
+       <property name="text">
+        <string>清空文本</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="temperatureBypassButton">
+       <property name="minimumSize">
+        <size>
+         <width>120</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>温度旁路: 关闭</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="sendBt">
+       <property name="visible">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>发送数据</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="tryButton">
+       <property name="minimumSize">
+        <size>
+         <width>120</width>
+         <height>32</height>
+        </size>
+       </property>
+       <property name="text">
+        <string>全段扫描 (TRY)</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <customwidgets>
+  <customwidget>
+   <class>LaserChart</class>
+   <extends>QWidget</extends>
+   <header>laserchart.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

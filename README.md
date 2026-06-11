@@ -1,0 +1,419 @@
+# 激光器控制系统上位机说明
+
+本项目是基于 Qt Widgets 和 QtSerialPort 的三路激光器控制上位机。普通操作员页面和开发者页面共用 `LaserController`，所有串口发送、顺序联锁、缓升缓降、配置读取都集中在控制核心中，界面层只发起请求。
+
+## 1. 控制核心
+
+控制链路：
+
+```text
+普通页面 / 开发者页面 / TRY
+        -> LaserController 联锁判断
+        -> 定时器分步缓升或缓降
+        -> sendLaserCommand()
+        -> STM32 单字节串口指令
+        -> 更新上位机 setpoint 和曲线
+```
+
+`LaserController` 会在三个层面兜底：
+
+- 请求入口：`canAdjustLaser()` 判断当前方向是否允许。
+- 目标调节：`setLaserTarget()` 启动定时器前再次判断目标方向。
+- 串口发送：`sendLaserCommand()` 每次发单字节前再次检查联锁。
+
+因此即使 UI 状态刷新不及时，也不会绕过内部顺序联锁。
+
+## 2. 串口协议
+
+| 指令 | 作用 | DAC 增量 | 大约电流增量 |
+|---|---|---:|---:|
+| `'0'` | L1 粗调降 | -31 | -10 mA |
+| `'1'` | L1 粗调升 | +31 | +10 mA |
+| `'2'` | L1 细调降 | -3 | -1 mA |
+| `'3'` | L1 细调升 | +3 | +1 mA |
+| `'4'` | L2 粗调升 | +31 | +10 mA |
+| `'5'` | L2 粗调降 | -31 | -10 mA |
+| `'6'` | L2 细调升 | +3 | +1 mA |
+| `'7'` | L2 细调降 | -3 | -1 mA |
+| `'8'` | L3 升 | +20 | +100 mA |
+| `'9'` | L3 降 | -20 | -100 mA |
+
+L1/L2 的可选步长只能是 `1 mA` 或 `10 mA`。L3 由硬件协议固定为 `100 mA`。
+
+## 3. 顺序联锁
+
+开机顺序：`L1 -> L2 -> L3`
+
+| 目标 | 允许条件 |
+|---|---|
+| L1 升高 | 串口可用，L1 就绪，且 L2=0、L3=800 |
+| L2 升高 | L1/L2 就绪，L1 达到 L1EnableL2Ma，且 L3=800 |
+| L3 升高 | L1/L2/L3 就绪，L1 和 L2 都达到启动阈值 |
+
+关机顺序：`L3 -> L2 -> L1`
+
+| 目标 | 允许条件 |
+|---|---|
+| L3 降低 | 允许先降 L3 |
+| L2 降低 | 必须先保证 L3 回到 L3SafeOffMa，默认 800 mA |
+| L1 降低 | 必须先保证 L2 回到 0 mA，且 L3 回到 800 mA |
+
+## 4. 统一启动曲线
+
+L1 和 L2 的启动曲线配置：
+
+- `[StartupL1]`：L1 普通启动和开发者 TRY 的 L1 前段共用（三段式曲线）。
+- `[StartupL2]`：L2 单段缓升，从 0 直接升至目标电流。
+
+L1 三段式曲线参数：
+
+| 参数 | 含义 |
+|---|---|
+| `HighMa` | 第一段上升目标 |
+| `MiddleMa` | 第二段回落目标 |
+| `FinalMa` | 第三段最终工作电流 |
+| `RiseDurationMs` | 当前值到高点的目标时长 |
+| `FallMiddleDurationMs` | 高点到中间点的目标时长 |
+| `FallFinalDurationMs` | 中间点到最终工作电流的目标时长 |
+| `StepMa` | 启动步长，只能是 1 或 10 |
+
+L2 单段缓升参数：
+
+| 参数 | 含义 |
+|---|---|
+| `FinalMa` | 目标工作电流 |
+| `RiseDurationMs` | 缓升总时长 |
+| `StepMa` | 启动步长，只能是 1 或 10 |
+
+默认值：
+
+| 通道 | 曲线 | 步长 |
+|---|---|---:|
+| L1 | `0 -> 850 -> 200 -> 98 mA` | 1 mA |
+| L2 | `0 -> 460 mA`（单段） | 10 mA |
+
+普通操作员页面点击 L1 或 L2 开启时，L1 走三段曲线，L2 走单段缓升。开发者 TRY 的 L1 前段走同一套 L1 曲线，L2 也直接复用 `[StartupL2]` 的目标、步长和时长，不再维护第二套 L2 TRY 参数。
+
+## 5. 开发者 TRY
+
+### 5.1 状态机
+
+| 阶段 | 动作 | 方向 | 终点 | 下一步 |
+|---|---|---|---|---|
+| TryPhase1 | L1 升 | ↑ | 850mA | → TryPhase2 |
+| TryPhase2 | L1 降 | ↓ | 200mA | → TryPhase3 |
+| TryPhase3 | L1 降 | ↓ | 98mA | → TryPhaseL2 |
+| TryPhaseL2 | L2 升 | ↑ | 460mA | → TryPhaseL3 |
+| TryPhaseL3 | L3 升 | ↑ | 5000mA | → Done |
+
+### 5.2 扫描流程
+
+L1 启动曲线完成 (98mA)
+  │
+  ▼
+┌─────────────────────────────────────┐
+│ L2 单段缓升 (TryPhaseL2)             │
+│  当前值 → operatorL2FinalMa (460mA)  │
+│  步长 10mA，时长 30s                 │
+│  参数来源：[StartupL2]               │
+│  TRY 弹窗中 L2 参数只读，不可独立修改  │
+└─────────────────────────────────────┘
+  │
+  ▼
+L3 扫描 (TryPhaseL3)
+  800 → 5000 mA
+
+
+TRY 执行顺序：
+
+```text
+L1 StartupL1 三段启动
+        -> L2 单段缓升到 StartupL2/FinalMa
+        -> L3 扫描到 DeveloperTry/L3TargetMa
+```
+
+### 5.3 L2 参数统一化
+
+L2 在普通页面开启和 TRY 扫描中**共用同一套参数**：
+
+- **参数唯一来源**：`[StartupL2]` 配置段（`FinalMa`、`RiseDurationMs`、`StepMa`）
+- **L2 参数弹窗**（`on_laser2ParamsButton_clicked`）：只保留 3 个字段 —— 最终工作电流、缓升时长、启动步长。保存时自动将 TRY 参数同步为相同值。
+- **TRY 扫描弹窗**（`on_tryButton_clicked`）：L2 目标/步长/时间显示为只读，标注"来自 L2 参数"，不可独立修改。
+- **`loadConfig()`**：启动时强制 `tryL2TargetMa = startupL2FinalMa`，避免旧 ini 残留的 `DeveloperTry/L2*` 值造成分叉。
+- **`saveDeveloperLaserParameters()`**：`DeveloperTry/L2*` 仍写入，但数值从 `StartupL2` 同步，仅作为兼容镜像。
+
+### 5.4 注意事项
+
+- L2 在 TRY 中只有一段缓升，不使用三段式曲线。
+- TRY 每一步仍然调用 `LaserController::setLaserTarget()`，不会绕过联锁。
+- **TRY 扫描期间，开发者页面的 +/- 按钮和 SpinBox 会被自动锁定**，避免手动命令插入自动扫描流程。锁定会持续到扫描完成或手动停止，不会在每段 ramp 间隙短暂解锁，杜绝按钮闪烁。
+- TRY 的 L1 阶段复用 `[StartupL1]` 的三段曲线参数；L3 的扫描目标/步长/时长仍在 TRY 弹窗中独立设置，保存在 `[DeveloperTry]`。
+
+## 6. 普通操作员页面
+
+普通操作员页面现在也提供串口连接入口：
+
+- 串口下拉框来自 `LaserController::availablePortNames()`，用于选择当前要连接的端口。
+- `连接/断开` 按钮调用同一个 `LaserController::openSerial()` / `closeSerial()`，不会创建第二套串口控制链路。
+- 连接状态会显示在普通页面底部；串口断开、热插拔或自动重连时，普通页和开发者页会同步刷新。
+- 未连接时，L1、L2 和 L3 功率输入都会被内部联锁锁住，提示“请先连接串口”。
+
+启动顺序：
+
+| 步骤 | 操作 | 系统行为 |
+|---|---|---|
+| 1 | 在普通页面选择串口并点击 `连接` | 未连接时所有操作锁住 |
+| 2 | 点击 `L1 开/关（种子）` | L1 按 `StartupL1` 三段启动，完成后按钮才显示已开启 |
+| 3 | 点击 `预放开/关` | L2 按 `StartupL2` 单段缓升，完成后按钮才显示已开启 |
+| 4 | 调整功率百分比 | 2%~100% 映射到 L3 800~5000 mA，并按 100 mA 对齐 |
+
+关机顺序：
+
+| 步骤 | 操作 | 系统行为 |
+|---|---|---|
+| 1 | 将功率百分比调回 2% | L3 回到 800 mA |
+| 2 | 关闭预放 L2 | 只有 L3=800 时才允许关闭 |
+| 3 | 关闭 L1 | 只有 L2=0 且 L3=800 时才允许关闭 |
+
+按钮显示规则：
+
+- 未满足顺序条件时按钮置灰或提交后提示原因。
+- 正在开启/关闭时显示”正在开启...”或”正在关闭...”。
+- 只有控制核心发出完成信号后，按钮才切换为”已开启/已关闭”。
+
+温度旁路安全提示：
+
+- 当开发者开启温度旁路后，普通页面会在面板下方显示醒目的警告条：**”警告：温度就绪旁路已开启。上位机将忽略下位机温度就绪状态，仅保留顺序联锁；最终温度保护依赖下位机。”**
+- 该警告条持续显示，直至开发者关闭旁路后才自动隐藏，避免操作员误以为上位机已验证温度就绪。
+- 警告条位于功率调节区域下方、串口连接栏上方，不会遮挡主要操作控件。
+
+## 7. 配置文件
+
+程序启动时读取运行目录下的 `laser_config.ini`。如果文件不存在，控制核心会生成默认配置。
+
+主要配置段：
+
+| 配置段 | 作用 |
+|---|---|
+| `[Interlock]` | L1/L2 启动阈值和安全关闭态 |
+| `[Range]` | L1/L2/L3 设定值上限 |
+| `[StartupL1]` | L1 普通启动和 TRY 前段 |
+| `[StartupL2]` | L2 普通启动和 TRY L2 段，唯一 L2 启动/扫描参数源 |
+| `[Step]` | 与 STM32 指令对应的固定步长 |
+| `[L3OperatorPower]` | 普通页面功率百分比到 L3 mA 的映射 |
+| `[Ramp]` | 缓升间隔配置（默认/最小/手动均为 67ms，统一锁 15Hz） |
+| `[Temperature]` | 临时温度 ready 旁路开关，默认关闭 |
+| `[DeveloperTry]` | TRY L3 扫描目标和时长；L2 的 DeveloperTry 键仅作兼容镜像，实际以 `[StartupL2]` 为准 |
+
+开发者页面每路都有独立参数按钮。保存时会写回对应配置段，并生成 `laser_config.ini.bak`。
+
+## 8. 温度检测与就绪状态
+
+当前系统有两层就绪状态：
+
+```text
+laserXRawReady  ->  laserXReady
+```
+
+| 状态 | 含义 | 主要来源 |
+|---|---|---|
+| `laserXRawReady` | STM32 原始温度/就绪状态 | 串口文本解析；当前发送成功后也会辅助置 true |
+| `laserXReady` | 上位机按依赖链计算后的最终就绪状态 | `updateLaserDependencies()` |
+
+依赖链计算规则：
+
+```text
+L1 ready = L1 rawReady
+L2 ready = L1 ready && L2 rawReady
+L3 ready = L1 ready && L2 ready && L3 rawReady
+```
+
+### 8.1 下位机温度检测
+
+STM32 端主要使用 GPIO 温度状态：
+
+| 通道 | 温度输入 | 下位机逻辑 |
+|---|---|---|
+| L1 | `PB13` | 每 200 ms 防抖检测，变化时打印温度就绪/未就绪 |
+| L2 | `PB14` | 每 200 ms 防抖检测，变化时打印温度就绪/未就绪 |
+| L3 | 当前默认就绪 | `temp_status_prev3 = 1`，L3 温度检测代码当前被注释 |
+
+下位机使能关系：
+
+```text
+L1 enable = L1 温度就绪
+L2 enable = L1 温度就绪 && L2 温度就绪
+L3 enable = L1 温度就绪 && L2 温度就绪 && L3 温度就绪
+```
+
+下位机是最后一道保护：即使上位机错误发送了命令，STM32 在执行 L1/L2/L3 指令前仍会检查温度优先级，不满足时会打印错误并拒绝执行。
+
+### 8.2 上位机解析路径
+
+上位机在 `LaserController::serialPortReadyRead()` 中按行解析 STM32 输出。
+
+当前支持的典型文本：
+
+| 通道 | 就绪文本 | 未就绪文本 |
+|---|---|---|
+| L1 | `Laser1:温度就绪`、`Laser1就绪`、`laser1ready`、`L1:OK` | `Laser1:温度未就绪`、`Laser1未就绪`、`laser1notready`、`L1:NG` |
+| L2 | `Laser2:温度就绪`、`Laser2就绪`、`laser2ready`、`L2:OK` | `Laser2:温度未就绪`、`Laser2未就绪`、`laser2notready`、`L2:NG` |
+| L3 | `Laser3:温度就绪`、`Laser3就绪`、`laser3ready`、`L3:OK` | `Laser3:温度未就绪`、`Laser3未就绪`、`laser3notready`、`L3:NG` |
+
+解析后如果 rawReady 发生变化，会调用 `updateLaserDependencies()` 重新计算三路最终 ready，并通过 `readyChanged`、`stateChanged` 通知界面。
+
+### 8.3 联锁使用的是 rawReady
+
+安全联锁使用 `laserReadyForStartup()`，真实模式下读取的是 `laserRawReady()`，不是 `laserReady()`。
+
+| 操作 | 温度/就绪条件 |
+|---|---|
+| L1 升高 | L1 rawReady |
+| L2 升高 | L1 rawReady && L2 rawReady |
+| L3 升高 | L1 rawReady && L2 rawReady && L3 rawReady |
+| L3 降低 | 不要求温度 ready |
+| L2 降低 | 不要求温度 ready，但要求 L3 已回安全态 |
+| L1 降低 | 不要求温度 ready，但要求 L2/L3 已回安全态 |
+
+开发者页面会订阅 `readyChanged` 并显示状态灯；普通操作员页面不直接显示温度状态，而是通过按钮禁用和 tooltip 间接提示，例如“等待 L1 温度就绪”。
+
+### 8.4 临时温度旁路模式
+
+如果下位机暂时不能主动上传温度 ready，可以由开发者开启临时旁路：
+
+```ini
+[Temperature]
+BypassReadyCheck=false
+```
+
+| 值 | 行为 |
+|---|---|
+| `false` | 默认安全行为：上位机必须收到 STM32 温度 ready 才允许升高 |
+| `true` | 临时旁路：上位机忽略 rawReady，只保留顺序联锁和关机顺序 |
+
+旁路开启后：
+
+- `laserReadyForStartup()` 返回 true，不再因为缺少 rawReady 阻止升高。
+- `canAdjustLaser()` 中的电流顺序仍然有效：开机仍是 `L1 -> L2 -> L3`，关机仍是 `L3 -> L2 -> L1`。
+- **普通操作员页面**：面板下方会显示黄色警告条，提示”上位机未验证温度就绪，最终保护依赖下位机”。警告条持续显示，直到旁路关闭后才自动隐藏。
+- **开发者页面**：底部”温度旁路”按钮变为橙色高亮状态（文字变为”温度旁路: 开启”），同时在日志区和串口栏之间显示独立的警告标签。开启前必须确认风险弹窗。
+- 该模式只用于下位机暂不上传温度 ready 的临时场景，不等同于安全闭环。
+
+### 8.5 当前隐患
+
+1. `updateLaserStatusFromSend()` 会在发送成功后把对应通道 `rawReady` 置为 true。
+
+   当前协议里，上位机把一次串口 write 成功视为“该路可控”的辅助依据。这个逻辑不等价于真实温度就绪，也不等价于 STM32 已执行命令。若 STM32 停止上报状态，上位机可能长期保留旧的 ready 状态。
+
+2. 目前没有 ACK/NAK 确认。
+
+   上位机在 `sendLaserCommand()` 成功写出字节后就更新软件 setpoint；但串口写出成功只说明字节进入发送缓冲，不代表 STM32 已执行。如果 STM32 因温度未就绪拒绝命令，上位机 setpoint 仍可能提前变化，造成软件显示与真实硬件输出不一致。
+
+3. STM32 温度状态不是周期性心跳。
+
+   下位机目前只在温度状态变化时打印就绪/未就绪。如果上位机打开串口时错过了之前的就绪消息，就可能不知道当前真实温度状态；如果后续状态不再变化，上位机也不会自动重新获得完整状态。
+
+4. `checkLaserStatus()` 不是实际轮询。
+
+   上位机每 3 秒调用一次 `updateLaserDependencies()`，但它只是把已有 rawReady 重新计算成 ready；如果 rawReady 没有新的串口输入或复位动作，这个定时器不会主动发现温度变化。
+
+5. 文本协议解析较脆弱。
+
+   当前解析依赖字符串包含匹配。虽然会去掉普通空格并兼容 UTF-8/GBK，但如果 STM32 输出格式、标点、大小写或语言变化，可能导致上位机无法识别温度状态。
+
+6. L3 温度状态当前设计不完整。
+
+   STM32 当前把 L3 初始化为温度就绪，并注释掉 L3 温度检测代码。上位机仍保留 L3 rawReady/ready 逻辑，但真实系统中 L3 是否需要独立温度输入，需要按硬件设计最终确认。
+
+### 8.6 建议改进方向
+
+推荐后续逐步改成结构化闭环：
+
+```text
+STM32 周期性上报 STAT
+        -> 上位机按时间戳更新 rawReady
+        -> 超时未收到则置为 unknown/not ready
+        -> 上位机发送 CMD 带序号
+        -> STM32 回复 ACK/NAK
+        -> 只有 ACK 后才更新 setpoint
+```
+
+建议优先级：
+
+1. 取消或限制“发送成功后强制 rawReady=true”的逻辑。
+2. STM32 周期性上报 L1/L2/L3 温度状态和 enable 状态。
+3. 上位机为 rawReady 增加超时保护，超时后禁止继续升高。
+4. 增加 ACK/NAK、命令序号和超时重试。
+5. 将文本协议升级为结构化协议，例如 `STAT,L1,READY`、`ACK,1,98`、`NAK,2,TEMP_NOT_READY`。
+
+## 9. 全局发送限速（15Hz）
+
+所有串口发送路径最终都经过 `sendLaserCommand()`，内部通过三处配置形成统一的 15Hz（≈67ms）硬上限：
+
+### 9.1 三层限速
+
+```
+界面请求（+/-按钮 / SpinBox / TRY / 操作员页面）
+  │
+  ├─ 手动单步: adjustLaser()
+  │     └─ sendLaserCommand() 检查 lastSentTimers < minManualSendIntervalMs (67ms)
+  │
+  ├─ 缓升/缓降: setLaserTarget() → processRampStep()
+  │     └─ rampIntervalForTarget()
+  │           ├─ 有 durationMs: qMax(minRampIntervalMs (67ms), durationMs / steps)
+  │           └─ 无 durationMs: defaultRampIntervalMs (67ms)
+  │
+  └─ TRY 扫描: tryStep()
+        └─ tryIntervalForSegment() → qMax(kTryMinIntervalMs (67ms), totalTime / steps)
+```
+
+| 常量 | 位置 | 值 | 作用 |
+|---|---|---|---|
+| `minManualSendIntervalMs` | lasercontroller.h:197 | 67ms | `sendLaserCommand()` 每路硬地板，所有路径最终瓶颈 |
+| `minRampIntervalMs` | lasercontroller.h:196 | 67ms | `rampIntervalForTarget()` 指定时长时的下限 |
+| `defaultRampIntervalMs` | lasercontroller.h:195 | 67ms | ramp 无指定时长时的默认间隔 |
+| `kTryMinIntervalMs` | widget.cpp:13 | 67ms | `tryIntervalForSegment()` 计算 TRY 步进间隔的下限 |
+
+### 9.2 设计要点
+
+- **三值同步**：`defaultRampIntervalMs` = `minRampIntervalMs` = `minManualSendIntervalMs` = 67ms，保证无论走哪条代码路径，发送间隔都不会低于 67ms（约 15Hz）。
+- **跨通道独立计时**：`sendLaserCommand()` 中 `lastSentTimers` 按激光器索引（L1/L2/L3）独立管理，同一路不会超速，但三路可并发发送。
+- **TRY 的 `kTryMinIntervalMs`**：即使配置的总时长很短导致反推间隔过小（如 5 秒扫描 500 步 = 10ms），也会被强制拉到 67ms。
+- **Debug 模式不检查**：`sendLaserCommand()` 中 `serialPort && serialPort->isOpen()` 为 false 时跳过时间检查。
+
+## 10. 安全注意
+
+- 生产环境应关闭 `DEBUG_MODE`，否则不会真正通过串口控制硬件。
+- 当前软件电流主要是上位机 setpoint，实测电流只用于显示和曲线观察。
+- 当前温度 ready 主要来自 STM32 事件文本和上位机本地状态，尚未形成带超时的闭环心跳。
+- `Temperature/BypassReadyCheck=true` 仅为临时旁路，不代表温度安全已由上位机验证。
+- 如果 setpoint 和实测值差异明显，应暂停操作并检查硬件响应、温度就绪、驱动饱和或保护状态。
+- 后续建议继续完善 ACK/NAK、序号、CRC、超时重试和实测电流闭环联锁。
+
+## 附录：更新记录
+
+### 2026-05-23
+
+**L2 启动曲线简化（三段式 → 单段缓升）**
+- L2 从 `0→850→200→90mA` 三段式改为 `0→460mA` 单段缓升（步长 10mA，时长 30s）。
+- 移除 `TryPhaseL2Start1/2/3` 三个 TRY 状态，TryPhaseL2 直接执行单段缓升。
+- `requestOperatorSwitch(2, true)` 改为调用 `setLaserTarget()` 而非 `startOperatorSoftOn()`。
+- L2 参数弹窗从 10 个控件精简为 3 个（目标电流、缓升时长、步长）。
+
+**L2 参数统一化**
+- 普通页面 L2 开启和 TRY L2 扫描共用同一套 `[StartupL2]` 参数（`FinalMa`、`RiseDurationMs`、`StepMa`）。
+- L2 参数弹窗不再暴露独立的 TRY 目标/步长/时间字段，保存时自动同步。
+- TRY 扫描弹窗中 L2 参数改为只读显示，标注"来自 L2 参数"。
+- `loadConfig()` 启动时强制 `tryL2TargetMa = startupL2FinalMa`，旧 ini 的 `DeveloperTry/L2*` 降级为兼容镜像。
+
+**全局发送限速 15Hz（67ms）**
+- `defaultRampIntervalMs` 150→67ms，`minRampIntervalMs` 1→67ms，`minManualSendIntervalMs` 120→67ms。
+- widget.cpp 新增 `kTryMinIntervalMs = 67`，`tryIntervalForSegment()` 下限从 1ms 提高到 67ms。
+- 三层限速统一锁在 15Hz，消除 ramp 间隔小于 `sendLaserCommand` 硬地板导致的发送失败风险。
+
+**普通页面功率步进**
+- 新增 `operatorPowerPercentStep()`，确保 +/- 一次跨过至少一个 L3 硬件电流档位（100mA），避免按键表现为无效。
+
+**按钮闪烁修复**
+- 新增 `visualRefreshTimer`（零毫秒单次定时器），合并同一事件循环内的多次 `updateAllLaserVisuals()` 调用。
+- TRY 扫描期间通过 `anyBusy || tryRunning` 锁定手动操作按钮，避免 ramp 段间隙短暂解锁。
